@@ -51,7 +51,6 @@ const navigationItems = [
   { name: "Reservas", href: "/bookings", icon: CalendarDays },
   { name: "Hóspedes", href: "/guests", icon: Users },
   { name: "Pagamentos", href: "/payments", icon: CreditCard },
-  { name: "Funcionários", href: "/staff", icon: Building2 },
   { name: "Relatórios", href: "/reports", icon: FileText },
 ];
 

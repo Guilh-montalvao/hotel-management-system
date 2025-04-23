@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,8 +16,10 @@ import {
   DollarSignIcon,
   FilterIcon,
   PlusIcon,
+  RefreshCwIcon,
   SearchIcon,
   WalletIcon,
+  XIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +46,79 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
  * Permite visualizar e gerenciar todas as transações financeiras do hotel
  */
 export default function PaymentsPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentTab, setCurrentTab] = useState("all");
+  const [filteredTransactions, setFilteredTransactions] =
+    useState(transactionData);
+
+  // Função para filtrar transações com base na pesquisa, filtro de status e aba atual
+  useEffect(() => {
+    let results = [...transactionData];
+
+    // Filtrar por tipo de aba
+    if (currentTab !== "all") {
+      if (currentTab === "recent") {
+        results = results.slice(0, 3); // Mostrar apenas as 3 transações mais recentes
+      } else if (currentTab === "pending") {
+        results = results.filter(
+          (transaction) => transaction.status === "Pendente"
+        );
+      } else if (currentTab === "refunds") {
+        results = results.filter(
+          (transaction) => transaction.status === "Reembolsado"
+        );
+      }
+    }
+
+    // Filtrar por status selecionado
+    if (statusFilter !== "all") {
+      const statusMap = {
+        completed: "Concluído",
+        pending: "Pendente",
+        failed: "Falha",
+        refunded: "Reembolsado",
+      };
+
+      if (statusMap[statusFilter as keyof typeof statusMap]) {
+        results = results.filter(
+          (transaction) =>
+            transaction.status ===
+            statusMap[statusFilter as keyof typeof statusMap]
+        );
+      }
+    }
+
+    // Filtrar por pesquisa (ID, nome do hóspede)
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      results = results.filter(
+        (transaction) =>
+          transaction.id.toLowerCase().includes(query) ||
+          transaction.guestName.toLowerCase().includes(query) ||
+          transaction.method.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredTransactions(results);
+  }, [searchQuery, statusFilter, currentTab]);
+
+  // Função para limpar filtros
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // Função para atualizar os filtros manualmente
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+  };
+
+  // Função para atualizar a aba atual
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -51,6 +129,10 @@ export default function PaymentsPage() {
           <Button variant="outline" size="sm">
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
+          </Button>
+          <Button variant="outline" size="sm" onClick={clearFilters}>
+            <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Limpar Filtros
           </Button>
           <Button size="sm">
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -155,9 +237,21 @@ export default function PaymentsPage() {
                   type="search"
                   placeholder="Buscar transações..."
                   className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              <Select defaultValue="all">
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
@@ -173,109 +267,53 @@ export default function PaymentsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all" className="space-y-4">
+          <Tabs
+            defaultValue="all"
+            className="space-y-4"
+            onValueChange={handleTabChange}
+          >
             <TabsList>
               <TabsTrigger value="all">Todas as Transações</TabsTrigger>
               <TabsTrigger value="recent">Recentes</TabsTrigger>
               <TabsTrigger value="pending">Pendentes</TabsTrigger>
               <TabsTrigger value="refunds">Reembolsos</TabsTrigger>
             </TabsList>
-            <TabsContent value="all" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID da Transação</TableHead>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactionData.map((transaction) => (
-                    <TransactionRow
-                      key={transaction.id}
-                      transaction={transaction}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="recent" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID da Transação</TableHead>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactionData.slice(0, 3).map((transaction) => (
-                    <TransactionRow
-                      key={transaction.id}
-                      transaction={transaction}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="pending" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID da Transação</TableHead>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactionData
-                    .filter((t) => t.status === "Pendente")
-                    .map((transaction) => (
+
+            {filteredTransactions.length > 0 ? (
+              <TabsContent value={currentTab} className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID da Transação</TableHead>
+                      <TableHead>Hóspede</TableHead>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Valor</TableHead>
+                      <TableHead>Método</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.map((transaction) => (
                       <TransactionRow
                         key={transaction.id}
                         transaction={transaction}
                       />
                     ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="refunds" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>ID da Transação</TableHead>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Data</TableHead>
-                    <TableHead>Valor</TableHead>
-                    <TableHead>Método</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {transactionData
-                    .filter((t) => t.status === "Reembolsado")
-                    .map((transaction) => (
-                      <TransactionRow
-                        key={transaction.id}
-                        transaction={transaction}
-                      />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
+                  </TableBody>
+                </Table>
+              </TabsContent>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <div className="text-muted-foreground mb-4">
+                  Nenhuma transação encontrada com os filtros atuais.
+                </div>
+                <Button onClick={clearFilters}>
+                  <RefreshCwIcon className="mr-2 h-4 w-4" />
+                  Limpar Filtros
+                </Button>
+              </div>
+            )}
           </Tabs>
         </CardContent>
       </Card>

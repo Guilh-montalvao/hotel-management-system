@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +15,8 @@ import {
   SearchIcon,
   UserIcon,
   UsersIcon,
+  XIcon,
+  RefreshCwIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +43,76 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
  * Permite visualizar e gerenciar informações de todos os hóspedes do hotel
  */
 export default function GuestsPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentTab, setCurrentTab] = useState("all");
+  const [filteredGuests, setFilteredGuests] = useState(guestData);
+
+  // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
+  useEffect(() => {
+    let results = [...guestData];
+
+    // Filtrar por tipo de status (aba)
+    if (currentTab !== "all") {
+      const statusMap = {
+        current: "Atual",
+        recent: "Recente",
+      };
+
+      if (statusMap[currentTab as keyof typeof statusMap]) {
+        results = results.filter(
+          (guest) =>
+            guest.status === statusMap[currentTab as keyof typeof statusMap]
+        );
+      }
+    }
+
+    // Filtrar por status selecionado
+    if (statusFilter !== "all") {
+      const statusMap = {
+        current: "Atual",
+        past: "Anterior",
+      };
+
+      if (statusMap[statusFilter as keyof typeof statusMap]) {
+        results = results.filter(
+          (guest) =>
+            guest.status === statusMap[statusFilter as keyof typeof statusMap]
+        );
+      }
+    }
+
+    // Filtrar por pesquisa (nome, email, telefone, nacionalidade)
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      results = results.filter(
+        (guest) =>
+          guest.name.toLowerCase().includes(query) ||
+          guest.email.toLowerCase().includes(query) ||
+          guest.phone.toLowerCase().includes(query) ||
+          guest.nationality.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredGuests(results);
+  }, [searchQuery, statusFilter, currentTab]);
+
+  // Função para limpar filtros
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // Função para atualizar os filtros manualmente
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+  };
+
+  // Função para atualizar a aba atual
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -49,6 +124,10 @@ export default function GuestsPage() {
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
           </Button>
+          <Button variant="outline" size="sm" onClick={clearFilters}>
+            <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Limpar Filtros
+          </Button>
           <Button size="sm">
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Adicionar Hóspede
@@ -56,7 +135,7 @@ export default function GuestsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -89,21 +168,6 @@ export default function GuestsPage() {
             <p className="text-xs text-muted-foreground">
               Atualmente hospedados
             </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hóspedes VIP</CardTitle>
-            <Badge
-              variant="outline"
-              className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"
-            >
-              VIP
-            </Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">Membros premium</p>
           </CardContent>
         </Card>
         <Card>
@@ -142,16 +206,27 @@ export default function GuestsPage() {
                   type="search"
                   placeholder="Buscar hóspedes..."
                   className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              <Select defaultValue="all">
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Hóspedes</SelectItem>
                   <SelectItem value="current">Hóspedes Atuais</SelectItem>
-                  <SelectItem value="vip">Hóspedes VIP</SelectItem>
                   <SelectItem value="past">Hóspedes Anteriores</SelectItem>
                 </SelectContent>
               </Select>
@@ -159,99 +234,49 @@ export default function GuestsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="all" className="space-y-4">
+          <Tabs
+            defaultValue="all"
+            className="space-y-4"
+            onValueChange={handleTabChange}
+          >
             <TabsList>
               <TabsTrigger value="all">Todos</TabsTrigger>
               <TabsTrigger value="current">Atuais</TabsTrigger>
-              <TabsTrigger value="vip">VIP</TabsTrigger>
               <TabsTrigger value="recent">Recentes</TabsTrigger>
             </TabsList>
-            <TabsContent value="all" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Última Estadia</TableHead>
-                    <TableHead>Total de Estadias</TableHead>
-                    <TableHead>Preferências</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestData.map((guest) => (
-                    <GuestRow key={guest.id} guest={guest} />
-                  ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="current" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Última Estadia</TableHead>
-                    <TableHead>Total de Estadias</TableHead>
-                    <TableHead>Preferências</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestData
-                    .filter((guest) => guest.status === "Atual")
-                    .map((guest) => (
+
+            {filteredGuests.length > 0 ? (
+              <TabsContent value={currentTab} className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hóspede</TableHead>
+                      <TableHead>Contato</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Última Estadia</TableHead>
+                      <TableHead>Total de Estadias</TableHead>
+                      <TableHead>Preferências</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredGuests.map((guest) => (
                       <GuestRow key={guest.id} guest={guest} />
                     ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="vip" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Última Estadia</TableHead>
-                    <TableHead>Total de Estadias</TableHead>
-                    <TableHead>Preferências</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestData
-                    .filter((guest) => guest.vip)
-                    .map((guest) => (
-                      <GuestRow key={guest.id} guest={guest} />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="recent" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Última Estadia</TableHead>
-                    <TableHead>Total de Estadias</TableHead>
-                    <TableHead>Preferências</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {guestData
-                    .filter((guest) => guest.status === "Recente")
-                    .map((guest) => (
-                      <GuestRow key={guest.id} guest={guest} />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
+                  </TableBody>
+                </Table>
+              </TabsContent>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <div className="text-muted-foreground mb-4">
+                  Nenhum hóspede encontrado com os filtros atuais.
+                </div>
+                <Button onClick={clearFilters}>
+                  <RefreshCwIcon className="mr-2 h-4 w-4" />
+                  Limpar Filtros
+                </Button>
+              </div>
+            )}
           </Tabs>
         </CardContent>
       </Card>
@@ -275,14 +300,6 @@ function GuestRow({ guest }: { guest: Guest }) {
           <div>
             <div className="font-medium flex items-center gap-1">
               {guest.name}
-              {guest.vip && (
-                <Badge
-                  variant="outline"
-                  className="ml-1 bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"
-                >
-                  VIP
-                </Badge>
-              )}
             </div>
             <div className="text-xs text-muted-foreground">
               {guest.nationality}
@@ -345,7 +362,6 @@ interface Guest {
   status: "Atual" | "Recente" | "Anterior";
   lastStay: string;
   totalStays: number;
-  vip: boolean;
   preferences: string[];
 }
 
@@ -363,7 +379,6 @@ const guestData: Guest[] = [
     status: "Atual",
     lastStay: "12/06/2023 - 15/06/2023",
     totalStays: 5,
-    vip: true,
     preferences: ["Vista para o mar", "Andar alto", "Café da manhã"],
   },
   {
@@ -376,7 +391,6 @@ const guestData: Guest[] = [
     status: "Recente",
     lastStay: "05/06/2023 - 10/06/2023",
     totalStays: 3,
-    vip: false,
     preferences: ["Quarto silencioso", "Academia"],
   },
   {
@@ -389,7 +403,6 @@ const guestData: Guest[] = [
     status: "Anterior",
     lastStay: "20/05/2023 - 25/05/2023",
     totalStays: 2,
-    vip: false,
     preferences: ["Cama king", "Serviço de quarto"],
   },
   {
@@ -402,7 +415,6 @@ const guestData: Guest[] = [
     status: "Atual",
     lastStay: "10/06/2023 - 17/06/2023",
     totalStays: 7,
-    vip: true,
     preferences: ["Suite luxo", "Champagne", "Transfer"],
   },
   {
@@ -415,7 +427,6 @@ const guestData: Guest[] = [
     status: "Recente",
     lastStay: "01/06/2023 - 05/06/2023",
     totalStays: 4,
-    vip: false,
     preferences: ["Vista para cidade", "Vegetariano"],
   },
   {
@@ -428,7 +439,6 @@ const guestData: Guest[] = [
     status: "Anterior",
     lastStay: "10/05/2023 - 15/05/2023",
     totalStays: 1,
-    vip: false,
     preferences: ["Quarto para fumantes", "Bar"],
   },
   {
@@ -441,7 +451,6 @@ const guestData: Guest[] = [
     status: "Atual",
     lastStay: "08/06/2023 - 18/06/2023",
     totalStays: 10,
-    vip: true,
     preferences: ["Babá", "Menu infantil", "Piscina"],
   },
   {
@@ -454,7 +463,6 @@ const guestData: Guest[] = [
     status: "Recente",
     lastStay: "03/06/2023 - 07/06/2023",
     totalStays: 2,
-    vip: false,
     preferences: ["Academia 24h", "Café da manhã"],
   },
   {
@@ -467,7 +475,6 @@ const guestData: Guest[] = [
     status: "Anterior",
     lastStay: "15/05/2023 - 20/05/2023",
     totalStays: 3,
-    vip: true,
     preferences: ["Spa", "Serviço de quarto", "Late check-out"],
   },
   {
@@ -480,7 +487,6 @@ const guestData: Guest[] = [
     status: "Atual",
     lastStay: "09/06/2023 - 19/06/2023",
     totalStays: 6,
-    vip: false,
     preferences: ["Wi-Fi premium", "Estacionamento"],
   },
 ];

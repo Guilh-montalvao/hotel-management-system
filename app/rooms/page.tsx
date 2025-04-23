@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,6 +18,7 @@ import {
   RefreshCwIcon,
   SearchIcon,
   WrenchIcon,
+  XIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -30,6 +34,70 @@ import {
  * Permite visualizar, filtrar e gerenciar todos os quartos do hotel
  */
 export default function RoomsPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentTab, setCurrentTab] = useState("all");
+  const [filteredRooms, setFilteredRooms] = useState(roomData);
+
+  // Função para filtrar quartos com base na pesquisa, filtro de status e aba atual
+  useEffect(() => {
+    let results = [...roomData];
+
+    // Filtrar por tipo (aba)
+    if (currentTab !== "all") {
+      const typeMap = {
+        standard: "Padrão",
+        deluxe: "Luxo",
+        suite: "Suíte",
+      };
+      results = results.filter(
+        (room) => room.type === typeMap[currentTab as keyof typeof typeMap]
+      );
+    }
+
+    // Filtrar por status
+    if (statusFilter !== "all") {
+      const statusMap = {
+        available: "Disponível",
+        occupied: "Ocupado",
+        maintenance: "Manutenção",
+        cleaning: "Limpeza",
+      };
+      results = results.filter(
+        (room) =>
+          room.status === statusMap[statusFilter as keyof typeof statusMap]
+      );
+    }
+
+    // Filtrar por pesquisa (número ou descrição)
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      results = results.filter(
+        (room) =>
+          room.number.toLowerCase().includes(query) ||
+          room.description.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredRooms(results);
+  }, [searchQuery, statusFilter, currentTab]);
+
+  // Função para limpar filtros
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // Função para atualizar os filtros manualmente
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+  };
+
+  // Função para atualizar a aba atual
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -41,7 +109,7 @@ export default function RoomsPage() {
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={clearFilters}>
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Atualizar
           </Button>
@@ -139,9 +207,21 @@ export default function RoomsPage() {
                     type="search"
                     placeholder="Buscar quartos..."
                     className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
-                <Select defaultValue="all">
+                <Select value={statusFilter} onValueChange={handleStatusChange}>
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filtrar por status" />
                   </SelectTrigger>
@@ -157,47 +237,37 @@ export default function RoomsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="all" className="space-y-4">
+            <Tabs
+              defaultValue="all"
+              className="space-y-4"
+              onValueChange={handleTabChange}
+            >
               <TabsList>
                 <TabsTrigger value="all">Todos os Quartos</TabsTrigger>
                 <TabsTrigger value="standard">Padrão</TabsTrigger>
                 <TabsTrigger value="deluxe">Luxo</TabsTrigger>
                 <TabsTrigger value="suite">Suíte</TabsTrigger>
               </TabsList>
-              <TabsContent value="all" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roomData.map((room) => (
-                    <RoomCard key={room.number} room={room} />
-                  ))}
-                </div>
-              </TabsContent>
-              <TabsContent value="standard" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roomData
-                    .filter((room) => room.type === "Padrão")
-                    .map((room) => (
+
+              {filteredRooms.length > 0 ? (
+                <TabsContent value={currentTab} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredRooms.map((room) => (
                       <RoomCard key={room.number} room={room} />
                     ))}
+                  </div>
+                </TabsContent>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-center">
+                  <div className="text-muted-foreground mb-4">
+                    Nenhum quarto encontrado com os filtros atuais.
+                  </div>
+                  <Button onClick={clearFilters}>
+                    <RefreshCwIcon className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                  </Button>
                 </div>
-              </TabsContent>
-              <TabsContent value="deluxe" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roomData
-                    .filter((room) => room.type === "Luxo")
-                    .map((room) => (
-                      <RoomCard key={room.number} room={room} />
-                    ))}
-                </div>
-              </TabsContent>
-              <TabsContent value="suite" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {roomData
-                    .filter((room) => room.type === "Suíte")
-                    .map((room) => (
-                      <RoomCard key={room.number} room={room} />
-                    ))}
-                </div>
-              </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>

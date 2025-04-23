@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,6 +16,7 @@ import {
   ClockIcon,
   FilterIcon,
   PlusIcon,
+  RefreshCwIcon,
   SearchIcon,
   XIcon,
 } from "lucide-react";
@@ -40,6 +44,84 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
  * Permite visualizar, criar e gerenciar todas as reservas do hotel
  */
 export default function BookingsPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentTab, setCurrentTab] = useState("upcoming");
+  const [filteredBookings, setFilteredBookings] = useState(bookingData);
+
+  // Função para filtrar reservas com base na pesquisa, filtro de status e aba atual
+  useEffect(() => {
+    let results = [...bookingData];
+
+    // Filtrar por tipo de status (aba)
+    if (currentTab !== "all") {
+      if (currentTab === "upcoming") {
+        results = results.filter(
+          (booking) =>
+            booking.status === "Confirmada" || booking.status === "Pendente"
+        );
+      } else if (currentTab === "current") {
+        results = results.filter(
+          (booking) => booking.status === "Check-in Feito"
+        );
+      } else if (currentTab === "past") {
+        results = results.filter(
+          (booking) => booking.status === "Check-out Feito"
+        );
+      } else if (currentTab === "cancelled") {
+        results = results.filter((booking) => booking.status === "Cancelada");
+      }
+    }
+
+    // Filtrar por status selecionado
+    if (statusFilter !== "all") {
+      const statusMap = {
+        confirmed: "Confirmada",
+        "checked-in": "Check-in Feito",
+        "checked-out": "Check-out Feito",
+        pending: "Pendente",
+        cancelled: "Cancelada",
+      };
+
+      if (statusMap[statusFilter as keyof typeof statusMap]) {
+        results = results.filter(
+          (booking) =>
+            booking.status === statusMap[statusFilter as keyof typeof statusMap]
+        );
+      }
+    }
+
+    // Filtrar por pesquisa (nome do hóspede, email, quarto)
+    if (searchQuery.trim() !== "") {
+      const query = searchQuery.toLowerCase();
+      results = results.filter(
+        (booking) =>
+          booking.guestName.toLowerCase().includes(query) ||
+          booking.guestEmail.toLowerCase().includes(query) ||
+          booking.room.toLowerCase().includes(query) ||
+          booking.roomType.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredBookings(results);
+  }, [searchQuery, statusFilter, currentTab]);
+
+  // Função para limpar filtros
+  const clearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  };
+
+  // Função para atualizar os filtros manualmente
+  const handleStatusChange = (value: string) => {
+    setStatusFilter(value);
+  };
+
+  // Função para atualizar a aba atual
+  const handleTabChange = (value: string) => {
+    setCurrentTab(value);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -50,6 +132,10 @@ export default function BookingsPage() {
           <Button variant="outline" size="sm">
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
+          </Button>
+          <Button variant="outline" size="sm" onClick={clearFilters}>
+            <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Limpar Filtros
           </Button>
           <Button size="sm">
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -146,9 +232,21 @@ export default function BookingsPage() {
                   type="search"
                   placeholder="Buscar reservas..."
                   className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
-              <Select defaultValue="all">
+              <Select value={statusFilter} onValueChange={handleStatusChange}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Filtrar por status" />
                 </SelectTrigger>
@@ -165,105 +263,50 @@ export default function BookingsPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="upcoming" className="space-y-4">
+          <Tabs
+            defaultValue="upcoming"
+            className="space-y-4"
+            onValueChange={handleTabChange}
+          >
             <TabsList>
               <TabsTrigger value="upcoming">Próximas</TabsTrigger>
               <TabsTrigger value="current">Estadias Atuais</TabsTrigger>
               <TabsTrigger value="past">Reservas Passadas</TabsTrigger>
               <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
             </TabsList>
-            <TabsContent value="upcoming" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Quarto</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookingData
-                    .filter(
-                      (booking) =>
-                        booking.status === "Confirmada" ||
-                        booking.status === "Pendente"
-                    )
-                    .map((booking) => (
+
+            {filteredBookings.length > 0 ? (
+              <TabsContent value={currentTab} className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Hóspede</TableHead>
+                      <TableHead>Quarto</TableHead>
+                      <TableHead>Check-in</TableHead>
+                      <TableHead>Check-out</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Pagamento</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBookings.map((booking) => (
                       <BookingRow key={booking.id} booking={booking} />
                     ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="current" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Quarto</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookingData
-                    .filter((booking) => booking.status === "Check-in Feito")
-                    .map((booking) => (
-                      <BookingRow key={booking.id} booking={booking} />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="past" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Quarto</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookingData
-                    .filter((booking) => booking.status === "Check-out Feito")
-                    .map((booking) => (
-                      <BookingRow key={booking.id} booking={booking} />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
-            <TabsContent value="cancelled" className="space-y-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Quarto</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pagamento</TableHead>
-                    <TableHead className="text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookingData
-                    .filter((booking) => booking.status === "Cancelada")
-                    .map((booking) => (
-                      <BookingRow key={booking.id} booking={booking} />
-                    ))}
-                </TableBody>
-              </Table>
-            </TabsContent>
+                  </TableBody>
+                </Table>
+              </TabsContent>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-8 text-center">
+                <div className="text-muted-foreground mb-4">
+                  Nenhuma reserva encontrada com os filtros atuais.
+                </div>
+                <Button onClick={clearFilters}>
+                  <RefreshCwIcon className="mr-2 h-4 w-4" />
+                  Limpar Filtros
+                </Button>
+              </div>
+            )}
           </Tabs>
         </CardContent>
       </Card>
