@@ -1,37 +1,25 @@
-import type React from "react"
+"use client";
 
-export const Area = () => {
-  return <></>
-}
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-export const AreaChart = () => {
-  return <></>
-}
-
-export const CartesianGrid = () => {
-  return <></>
-}
-
-export const ResponsiveContainer = ({ children }: { children: React.ReactNode }) => {
-  return <>{children}</>
-}
-
-export const Tooltip = () => {
-  return <></>
-}
-
-export const XAxis = () => {
-  return <></>
-}
-
-export const YAxis = () => {
-  return <></>
-}
-
-export const Bar = () => {
-  return <></>
-}
-
-export const BarChart = () => {
-  return <></>
-}
+export {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+};

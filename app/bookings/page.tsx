@@ -38,6 +38,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
+import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
 
 /**
  * Página de gerenciamento de reservas
@@ -48,6 +50,9 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("upcoming");
   const [filteredBookings, setFilteredBookings] = useState(bookingData);
+  const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
 
   // Função para filtrar reservas com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -122,6 +127,36 @@ export default function BookingsPage() {
     setCurrentTab(value);
   };
 
+  // Função para adicionar uma nova reserva
+  const handleAddBooking = (data: any) => {
+    // Criando uma nova reserva com os dados recebidos
+    const newBooking: Booking = {
+      id: (Date.now() + Math.random()).toString(36), // ID gerado no backend (simulado)
+      guestName: data.guestName,
+      guestEmail: data.guestEmail,
+      guestInitials: data.guestInitials,
+      room: data.room,
+      roomType: data.roomType,
+      checkIn: data.checkIn,
+      checkOut: data.checkOut,
+      status: data.status,
+      paymentStatus: data.paymentStatus,
+      paymentMethod: data.paymentMethod,
+    };
+
+    // Adicionando a nova reserva ao início da lista de dados
+    bookingData.unshift(newBooking);
+
+    // Atualizando a lista filtrada
+    setFilteredBookings([...bookingData]);
+  };
+
+  // Função para visualizar detalhes de uma reserva
+  const handleViewBooking = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setShowDetailsDialog(true);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -137,7 +172,7 @@ export default function BookingsPage() {
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowAddBookingDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Nova Reserva
           </Button>
@@ -291,7 +326,11 @@ export default function BookingsPage() {
                   </TableHeader>
                   <TableBody>
                     {filteredBookings.map((booking) => (
-                      <BookingRow key={booking.id} booking={booking} />
+                      <BookingRow
+                        key={booking.id}
+                        booking={booking}
+                        onView={handleViewBooking}
+                      />
                     ))}
                   </TableBody>
                 </Table>
@@ -310,6 +349,22 @@ export default function BookingsPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Diálogo para adicionar nova reserva */}
+      <AddBookingDialog
+        open={showAddBookingDialog}
+        onOpenChange={setShowAddBookingDialog}
+        onAddBooking={handleAddBooking}
+      />
+
+      {/* Diálogo para visualizar detalhes da reserva */}
+      {selectedBooking && (
+        <BookingDetailsDialog
+          booking={selectedBooking}
+          open={showDetailsDialog}
+          onOpenChange={setShowDetailsDialog}
+        />
+      )}
     </div>
   );
 }
@@ -317,8 +372,15 @@ export default function BookingsPage() {
 /**
  * Componente que renderiza uma linha da tabela de reservas
  * @param booking - Dados da reserva a ser exibida
+ * @param onView - Função para visualizar os detalhes da reserva
  */
-function BookingRow({ booking }: { booking: Booking }) {
+function BookingRow({
+  booking,
+  onView,
+}: {
+  booking: Booking;
+  onView: (booking: Booking) => void;
+}) {
   return (
     <TableRow>
       <TableCell>
@@ -367,7 +429,7 @@ function BookingRow({ booking }: { booking: Booking }) {
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => onView(booking)}>
             Visualizar
           </Button>
           <Button size="sm">Editar</Button>

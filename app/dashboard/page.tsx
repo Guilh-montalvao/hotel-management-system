@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -21,12 +24,41 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { OccupancyChart } from "@/components/dashboard/occupancy-chart";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
+import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
+import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 
 /**
  * Página principal do painel de controle
  * Exibe informações resumidas e estatísticas importantes para gerenciamento do hotel
  */
 export default function DashboardPage() {
+  const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
+  const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
+
+  // Função para adicionar uma nova reserva
+  const handleAddBooking = (data: any) => {
+    // Aqui poderíamos implementar a lógica para salvar a reserva
+    console.log("Nova reserva criada:", {
+      ...data,
+      // Simulação de geração de ID no backend
+      id: (Date.now() + Math.random()).toString(36),
+    });
+    // Normalmente redirecionaríamos para a página de reservas
+    // ou atualizaríamos o estado local
+  };
+
+  // Função para adicionar um novo hóspede
+  const handleAddGuest = (data: any) => {
+    // Aqui poderíamos implementar a lógica para salvar o hóspede
+    console.log("Novo hóspede cadastrado:", {
+      ...data,
+      // Simulação de geração de ID no backend
+      id: (Date.now() + Math.random()).toString(36),
+    });
+    // Normalmente redirecionaríamos para a página de hóspedes
+    // ou atualizaríamos o estado local
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -219,11 +251,19 @@ export default function DashboardPage() {
                 <CardDescription>Tarefas e operações comuns</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2">
-                <Button className="w-full justify-start" variant="outline">
+                <Button
+                  className="w-full justify-start"
+                  variant="outline"
+                  onClick={() => setShowAddBookingDialog(true)}
+                >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   Nova Reserva
                 </Button>
-                <Button className="w-full justify-start" variant="outline">
+                <Button
+                  className="w-full justify-start"
+                  variant="outline"
+                  onClick={() => setShowAddGuestDialog(true)}
+                >
                   <UsersIcon className="mr-2 h-4 w-4" />
                   Adicionar Hóspede
                 </Button>
@@ -274,6 +314,20 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Diálogo para adicionar nova reserva */}
+      <AddBookingDialog
+        open={showAddBookingDialog}
+        onOpenChange={setShowAddBookingDialog}
+        onAddBooking={handleAddBooking}
+      />
+
+      {/* Diálogo para adicionar novo hóspede */}
+      <AddGuestDialog
+        open={showAddGuestDialog}
+        onOpenChange={setShowAddGuestDialog}
+        onAddGuest={handleAddGuest}
+      />
     </div>
   );
 }

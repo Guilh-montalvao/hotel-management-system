@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 
 /**
  * Página de gerenciamento de hóspedes
@@ -47,6 +48,7 @@ export default function GuestsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
   const [filteredGuests, setFilteredGuests] = useState(guestData);
+  const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
 
   // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -113,6 +115,29 @@ export default function GuestsPage() {
     setCurrentTab(value);
   };
 
+  // Função para adicionar um novo hóspede
+  const handleAddGuest = (data: any) => {
+    // Processando os dados para o formato usado na aplicação
+    const newGuest: Guest = {
+      id: (Date.now() + Math.random()).toString(36), // Gera um ID temporário no backend (simulado)
+      name: data.name,
+      initials: data.initials,
+      email: data.email,
+      phone: data.telefone,
+      nationality: data.nationality,
+      status: data.status,
+      lastStay: data.lastStay,
+      totalStays: data.totalStays,
+      preferences: data.preferences || [],
+    };
+
+    // Adicionando o novo hóspede ao início da lista de dados
+    guestData.unshift(newGuest);
+    
+    // Atualizando a lista filtrada
+    setFilteredGuests([...guestData]);
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -128,7 +153,7 @@ export default function GuestsPage() {
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Adicionar Hóspede
           </Button>
@@ -280,6 +305,13 @@ export default function GuestsPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Diálogo para adicionar novo hóspede */}
+      <AddGuestDialog
+        open={showAddGuestDialog}
+        onOpenChange={setShowAddGuestDialog}
+        onAddGuest={handleAddGuest}
+      />
     </div>
   );
 }

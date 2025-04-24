@@ -28,6 +28,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AddRoomDialog } from "@/components/rooms/add-room-dialog";
+import { RoomDetailsDialog } from "@/components/rooms/room-details-dialog";
 
 /**
  * Página de gerenciamento de quartos
@@ -38,6 +40,9 @@ export default function RoomsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
   const [filteredRooms, setFilteredRooms] = useState(roomData);
+  const [showAddRoomDialog, setShowAddRoomDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
 
   // Função para filtrar quartos com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -46,9 +51,8 @@ export default function RoomsPage() {
     // Filtrar por tipo (aba)
     if (currentTab !== "all") {
       const typeMap = {
-        standard: "Padrão",
-        deluxe: "Luxo",
-        suite: "Suíte",
+        solteiro: "Solteiro",
+        casal: "Casal",
       };
       results = results.filter(
         (room) => room.type === typeMap[currentTab as keyof typeof typeMap]
@@ -98,6 +102,39 @@ export default function RoomsPage() {
     setCurrentTab(value);
   };
 
+  // Função para adicionar um novo quarto
+  const handleAddRoom = (data: any) => {
+    // Criando um novo quarto com os dados do formulário
+    const newRoom: Room = {
+      number: data.number,
+      type: data.type === "Solteiro" ? "Solteiro" : "Casal", // Mapeando tipos
+      status: "Disponível", // Por padrão, novos quartos são disponíveis
+      rate: data.type === "Solteiro" ? 100 : 150, // Definindo o preço com base no tipo
+      description: data.description,
+      image: data.image || "/placeholder.svg?height=200&width=300",
+    };
+
+    // Adicionando o novo quarto ao início da lista
+    roomData.unshift(newRoom);
+
+    // Atualizando a lista filtrada
+    setFilteredRooms([...roomData]);
+  };
+
+  // Função para abrir o diálogo de detalhes do quarto
+  const handleViewRoomDetails = (room: Room) => {
+    setSelectedRoom(room);
+    setShowDetailsDialog(true);
+  };
+
+  // Disponibilizando a função para o componente RoomCard
+  useEffect(() => {
+    window.roomDetailsHandler = handleViewRoomDetails;
+    return () => {
+      window.roomDetailsHandler = undefined;
+    };
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -113,7 +150,7 @@ export default function RoomsPage() {
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Atualizar
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setShowAddRoomDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Adicionar Quarto
           </Button>
@@ -244,16 +281,19 @@ export default function RoomsPage() {
             >
               <TabsList>
                 <TabsTrigger value="all">Todos os Quartos</TabsTrigger>
-                <TabsTrigger value="standard">Padrão</TabsTrigger>
-                <TabsTrigger value="deluxe">Luxo</TabsTrigger>
-                <TabsTrigger value="suite">Suíte</TabsTrigger>
+                <TabsTrigger value="solteiro">Solteiro</TabsTrigger>
+                <TabsTrigger value="casal">Casal</TabsTrigger>
               </TabsList>
 
               {filteredRooms.length > 0 ? (
                 <TabsContent value={currentTab} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredRooms.map((room) => (
-                      <RoomCard key={room.number} room={room} />
+                      <RoomCard
+                        key={room.number}
+                        room={room}
+                        onViewDetails={handleViewRoomDetails}
+                      />
                     ))}
                   </div>
                 </TabsContent>
@@ -272,6 +312,20 @@ export default function RoomsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog para adicionar novo quarto */}
+      <AddRoomDialog
+        open={showAddRoomDialog}
+        onOpenChange={setShowAddRoomDialog}
+        onAddRoom={handleAddRoom}
+      />
+
+      {/* Dialog para exibir detalhes do quarto */}
+      <RoomDetailsDialog
+        open={showDetailsDialog}
+        onOpenChange={setShowDetailsDialog}
+        room={selectedRoom}
+      />
     </div>
   );
 }
@@ -279,8 +333,15 @@ export default function RoomsPage() {
 /**
  * Componente para exibir o cartão de um quarto
  * @param room - Dados do quarto a ser exibido
+ * @param onViewDetails - Função chamada quando o botão "Ver Detalhes" é clicado
  */
-function RoomCard({ room }: { room: Room }) {
+function RoomCard({
+  room,
+  onViewDetails,
+}: {
+  room: Room;
+  onViewDetails: (room: Room) => void;
+}) {
   return (
     <Card className="overflow-hidden">
       <div className="aspect-video relative bg-muted">
@@ -318,7 +379,9 @@ function RoomCard({ room }: { room: Room }) {
               <WrenchIcon className="h-4 w-4 mr-1" aria-hidden="true" />
               Gerenciar
             </Button>
-            <Button size="sm">Ver Detalhes</Button>
+            <Button size="sm" onClick={() => onViewDetails(room)}>
+              Ver Detalhes
+            </Button>
           </div>
         </div>
       </CardContent>
@@ -331,7 +394,7 @@ function RoomCard({ room }: { room: Room }) {
  */
 interface Room {
   number: string;
-  type: "Padrão" | "Luxo" | "Suíte";
+  type: "Solteiro" | "Casal";
   status: "Disponível" | "Ocupado" | "Manutenção";
   rate: number;
   description: string;
@@ -344,65 +407,72 @@ interface Room {
 const roomData: Room[] = [
   {
     number: "101",
-    type: "Padrão",
+    type: "Solteiro",
     status: "Disponível",
-    rate: 99,
-    description: "Cama de casal, vista para cidade, 25m²",
+    rate: 100,
+    description: "Cama de solteiro, vista para cidade, 20m²",
   },
   {
     number: "102",
-    type: "Padrão",
+    type: "Solteiro",
     status: "Ocupado",
-    rate: 99,
-    description: "Cama de casal, vista para jardim, 25m²",
+    rate: 100,
+    description: "Cama de solteiro, vista para jardim, 20m²",
   },
   {
     number: "201",
-    type: "Luxo",
+    type: "Casal",
     status: "Ocupado",
-    rate: 149,
-    description: "Cama king, vista para cidade, 35m²",
+    rate: 150,
+    description: "Cama de casal, vista para cidade, 30m²",
   },
   {
     number: "202",
-    type: "Luxo",
+    type: "Casal",
     status: "Manutenção",
-    rate: 149,
-    description: "Cama king, vista para o mar, 35m²",
+    rate: 150,
+    description: "Cama de casal, vista para o mar, 30m²",
   },
   {
     number: "301",
-    type: "Suíte",
+    type: "Casal",
     status: "Disponível",
-    rate: 249,
-    description: "Suíte de luxo, vista panorâmica, 50m²",
+    rate: 150,
+    description: "Cama de casal, vista panorâmica, 35m²",
   },
   {
     number: "302",
-    type: "Suíte",
+    type: "Solteiro",
     status: "Disponível",
-    rate: 249,
-    description: "Suíte executiva, varanda, 50m²",
+    rate: 100,
+    description: "Duas camas de solteiro, varanda, 25m²",
   },
   {
     number: "303",
-    type: "Suíte",
+    type: "Casal",
     status: "Ocupado",
-    rate: 299,
-    description: "Suíte presidencial, terraço, 75m²",
+    rate: 150,
+    description: "Cama de casal king size, terraço, 40m²",
   },
   {
     number: "401",
-    type: "Padrão",
+    type: "Solteiro",
     status: "Disponível",
-    rate: 99,
+    rate: 100,
     description: "Duas camas de solteiro, vista para cidade, 25m²",
   },
   {
     number: "402",
-    type: "Luxo",
+    type: "Casal",
     status: "Ocupado",
-    rate: 149,
+    rate: 150,
     description: "Cama king, hidromassagem, 35m²",
   },
 ];
+
+// Hack para permitir que o RoomCard acesse a função handleViewRoomDetails
+declare global {
+  interface Window {
+    roomDetailsHandler?: (room: Room) => void;
+  }
+}
