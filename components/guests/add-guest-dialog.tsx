@@ -147,18 +147,7 @@ export function AddGuestDialog({
     const guestData = {
       ...data,
       dataNascimento: format(data.dataNascimento, "dd/MM/yyyy"),
-      // Gerando iniciais do nome
-      initials: `${data.nome.charAt(0)}${data.sobrenome.charAt(0)}`,
-      // Nome completo
       name: `${data.nome} ${data.sobrenome}`,
-      // Status padrão para novos hóspedes
-      status: "Recente",
-      // Nacionalidade padrão (poderia ser um campo no formulário)
-      nationality: "Brasil",
-      // Estatísticas iniciais
-      lastStay: "Primeira estadia pendente",
-      totalStays: 0,
-      preferences: [],
     };
 
     // Chamando a função de callback passada como prop
