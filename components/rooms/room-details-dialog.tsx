@@ -26,14 +26,13 @@ import { CalendarDays, User, CreditCard, Clock } from "lucide-react";
 interface Room {
   number: string;
   type: "Solteiro" | "Casal";
-  status: "Disponível" | "Ocupado" | "Manutenção" | "Limpeza";
+  status: "Disponível" | "Ocupado" | "Limpeza";
   rate: number;
   description: string;
   image?: string;
   features?: string[];
   floor?: string;
   lastCleaning?: string;
-  nextMaintenance?: string;
 }
 
 // Interface para o registro de hospedagem
@@ -150,65 +149,64 @@ export function RoomDetailsDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">
-                      Informações Básicas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tipo:</span>
-                      <span className="font-medium">{room.type}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tarifa:</span>
-                      <span className="font-medium">R${room.rate}/noite</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Status atual:
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={`${
-                          room.status === "Disponível"
-                            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300"
-                            : room.status === "Ocupado"
-                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-                            : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300"
-                        }`}
-                      >
-                        {room.status}
-                      </Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Última limpeza</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        Última limpeza:
-                      </span>
-                      <span className="font-medium">
-                        {room.lastCleaning || "19/04/2025"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Descrição</CardTitle>
+                  <CardTitle className="text-lg">Detalhes do Quarto</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <p>{room.description}</p>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <h3 className="text-base font-medium">
+                        Informações Básicas
+                      </h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center py-1 border-b border-muted">
+                          <span className="text-muted-foreground">Tipo:</span>
+                          <span className="font-medium">{room.type}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b border-muted">
+                          <span className="text-muted-foreground">Tarifa:</span>
+                          <span className="font-medium">
+                            R${room.rate}/noite
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b border-muted">
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge
+                            variant="outline"
+                            className={`${
+                              room.status === "Disponível"
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300"
+                                : room.status === "Ocupado"
+                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300"
+                            }`}
+                          >
+                            {room.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <h3 className="text-base font-medium">Limpeza</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center py-1 border-b border-muted">
+                          <span className="text-muted-foreground">
+                            Última limpeza:
+                          </span>
+                          <span className="font-medium">
+                            {room.lastCleaning || "19/04/2025"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <h3 className="text-base font-medium mb-2">Descrição</h3>
+                    <p className="text-muted-foreground">{room.description}</p>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

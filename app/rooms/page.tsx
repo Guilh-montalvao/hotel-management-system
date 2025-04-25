@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +31,7 @@ import {
 } from "@/components/ui/select";
 import { AddRoomDialog } from "@/components/rooms/add-room-dialog";
 import { RoomDetailsDialog } from "@/components/rooms/room-details-dialog";
+import { useBookingStore } from "@/lib/store";
 
 /**
  * Página de gerenciamento de quartos
@@ -43,6 +45,18 @@ export default function RoomsPage() {
   const [showAddRoomDialog, setShowAddRoomDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+
+  // Calcular estatísticas dos quartos
+  const totalRooms = roomData.length;
+  const availableRooms = roomData.filter(
+    (room) => room.status === "Disponível"
+  ).length;
+  const occupiedRooms = roomData.filter(
+    (room) => room.status === "Ocupado"
+  ).length;
+  const cleaningRooms = roomData.filter(
+    (room) => room.status === "Limpeza"
+  ).length;
 
   // Função para filtrar quartos com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -64,7 +78,6 @@ export default function RoomsPage() {
       const statusMap = {
         available: "Disponível",
         occupied: "Ocupado",
-        maintenance: "Manutenção",
         cleaning: "Limpeza",
       };
       results = results.filter(
@@ -169,7 +182,7 @@ export default function RoomsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">120</div>
+            <div className="text-2xl font-bold">{totalRooms}</div>
             <p className="text-xs text-muted-foreground">
               Todos os quartos do hotel
             </p>
@@ -186,7 +199,7 @@ export default function RoomsPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
+            <div className="text-2xl font-bold">{availableRooms}</div>
             <p className="text-xs text-muted-foreground">
               Prontos para reserva
             </p>
@@ -203,23 +216,23 @@ export default function RoomsPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">86</div>
+            <div className="text-2xl font-bold">{occupiedRooms}</div>
             <p className="text-xs text-muted-foreground">Atualmente em uso</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Manutenção</CardTitle>
+            <CardTitle className="text-sm font-medium">Limpeza</CardTitle>
             <Badge
               variant="outline"
               className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"
             >
-              Manutenção
+              Limpeza
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">10</div>
-            <p className="text-xs text-muted-foreground">Em reparo</p>
+            <div className="text-2xl font-bold">{cleaningRooms}</div>
+            <p className="text-xs text-muted-foreground">Em limpeza</p>
           </CardContent>
         </Card>
       </div>
@@ -266,7 +279,6 @@ export default function RoomsPage() {
                     <SelectItem value="all">Todos os Status</SelectItem>
                     <SelectItem value="available">Disponível</SelectItem>
                     <SelectItem value="occupied">Ocupado</SelectItem>
-                    <SelectItem value="maintenance">Manutenção</SelectItem>
                     <SelectItem value="cleaning">Limpeza</SelectItem>
                   </SelectContent>
                 </Select>
@@ -342,6 +354,18 @@ function RoomCard({
   room: Room;
   onViewDetails: (room: Room) => void;
 }) {
+  const router = useRouter();
+  const { setSelectedRoom, setShouldOpenBookingDialog } = useBookingStore();
+
+  const handleReserveClick = () => {
+    // Armazena o quarto selecionado no store global
+    setSelectedRoom(room);
+    // Indica que o diálogo de reserva deve ser aberto
+    setShouldOpenBookingDialog(true);
+    // Redireciona para a página de reservas
+    router.push("/bookings");
+  };
+
   return (
     <Card className="overflow-hidden">
       <div className="aspect-video relative bg-muted">
@@ -375,12 +399,19 @@ function RoomCard({
             <span className="font-medium">R${room.rate}</span> / noite
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <WrenchIcon className="h-4 w-4 mr-1" aria-hidden="true" />
-              Gerenciar
-            </Button>
-            <Button size="sm" onClick={() => onViewDetails(room)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onViewDetails(room)}
+            >
               Ver Detalhes
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleReserveClick}
+              disabled={room.status !== "Disponível"}
+            >
+              Reservar
             </Button>
           </div>
         </div>
@@ -395,7 +426,7 @@ function RoomCard({
 interface Room {
   number: string;
   type: "Solteiro" | "Casal";
-  status: "Disponível" | "Ocupado" | "Manutenção";
+  status: "Disponível" | "Ocupado" | "Limpeza";
   rate: number;
   description: string;
   image?: string;
@@ -429,7 +460,7 @@ const roomData: Room[] = [
   {
     number: "202",
     type: "Casal",
-    status: "Manutenção",
+    status: "Limpeza",
     rate: 150,
     description: "Cama de casal, vista para o mar, 30m²",
   },
