@@ -38,11 +38,7 @@ export default function DashboardPage() {
   // Função para adicionar uma nova reserva
   const handleAddBooking = (data: any) => {
     // Aqui poderíamos implementar a lógica para salvar a reserva
-    console.log("Nova reserva criada:", {
-      ...data,
-      // Simulação de geração de ID no backend
-      id: (Date.now() + Math.random()).toString(36),
-    });
+    console.log("Nova reserva criada:", data);
     // Normalmente redirecionaríamos para a página de reservas
     // ou atualizaríamos o estado local
   };
@@ -50,11 +46,7 @@ export default function DashboardPage() {
   // Função para adicionar um novo hóspede
   const handleAddGuest = (data: any) => {
     // Aqui poderíamos implementar a lógica para salvar o hóspede
-    console.log("Novo hóspede cadastrado:", {
-      ...data,
-      // Simulação de geração de ID no backend
-      id: (Date.now() + Math.random()).toString(36),
-    });
+    console.log("Novo hóspede cadastrado:", data);
     // Normalmente redirecionaríamos para a página de hóspedes
     // ou atualizaríamos o estado local
   };
@@ -204,7 +196,7 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                   {recentBookings.map((booking) => (
                     <div
-                      key={booking.id}
+                      key={booking.name}
                       className="flex items-center justify-between space-x-4"
                     >
                       <div className="flex items-center space-x-4">
@@ -338,7 +330,6 @@ export default function DashboardPage() {
  */
 const recentBookings = [
   {
-    id: "1",
     name: "Ana Silva",
     room: "301",
     date: "Check-in: Hoje",
@@ -347,7 +338,6 @@ const recentBookings = [
     initials: "AS",
   },
   {
-    id: "2",
     name: "Miguel Santos",
     room: "205",
     date: "Check-in: Amanhã",
@@ -356,7 +346,6 @@ const recentBookings = [
     initials: "MS",
   },
   {
-    id: "3",
     name: "Sofia Oliveira",
     room: "412",
     date: "Check-in: Hoje",
@@ -365,7 +354,6 @@ const recentBookings = [
     initials: "SO",
   },
   {
-    id: "4",
     name: "Daniel Costa",
     room: "118",
     date: "Check-out: Hoje",
@@ -374,7 +362,6 @@ const recentBookings = [
     initials: "DC",
   },
   {
-    id: "5",
     name: "Laura Pereira",
     room: "225",
     date: "Check-in: Amanhã",
@@ -383,7 +370,6 @@ const recentBookings = [
     initials: "LP",
   },
   {
-    id: "6",
     name: "Ricardo Ferreira",
     room: "307",
     date: "Check-out: Hoje",
