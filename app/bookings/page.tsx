@@ -40,6 +40,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
+import { useBookingStore } from "@/lib/store";
 
 /**
  * Página de gerenciamento de reservas
@@ -53,6 +54,19 @@ export default function BookingsPage() {
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+
+  // Obter dados do store global
+  const { selectedRoom, shouldOpenBookingDialog, resetBookingState } =
+    useBookingStore();
+
+  // Verificar se deve abrir o diálogo de reserva quando a página carrega
+  useEffect(() => {
+    if (shouldOpenBookingDialog) {
+      setShowAddBookingDialog(true);
+      // Resetar o estado para não abrir o diálogo novamente se a página for recarregada
+      resetBookingState();
+    }
+  }, [shouldOpenBookingDialog, resetBookingState]);
 
   // Função para filtrar reservas com base na pesquisa, filtro de status e aba atual
   useEffect(() => {

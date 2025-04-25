@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon, CheckIcon, ChevronsUpDown } from "lucide-react";
+import { useBookingStore } from "@/lib/store";
 
 import {
   Dialog,
@@ -116,19 +117,29 @@ export function AddBookingDialog({
   onOpenChange,
   onAddBooking,
 }: AddBookingDialogProps) {
+  // Obter o quarto selecionado do store global
+  const { selectedRoom } = useBookingStore();
+
   // Configuração do formulário com validação
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       guestId: "",
       guestEmail: "",
-      room: "",
+      room: selectedRoom?.number || "",
       paymentMethod: "",
     },
   });
 
   // Estado para controlar a abertura do popover de combobox
   const [guestComboboxOpen, setGuestComboboxOpen] = useState(false);
+
+  // Efeito para preencher o campo de quarto quando selectedRoom mudar
+  useEffect(() => {
+    if (selectedRoom) {
+      form.setValue("room", selectedRoom.number);
+    }
+  }, [selectedRoom, form]);
 
   // Efeito para preencher o e-mail do hóspede quando selecionado
   useEffect(() => {
@@ -152,22 +163,10 @@ export function AddBookingDialog({
       guestName: selectedGuest?.name || "",
       checkIn: format(data.checkIn, "dd/MM/yyyy"),
       checkOut: format(data.checkOut, "dd/MM/yyyy"),
-      status: "Confirmada",
-      // Extraindo o tipo de quarto do label
       roomType:
         availableRooms
           .find((room) => room.value === data.room)
           ?.label.split(" - ")[1] || "",
-      // Gerando iniciais do nome do hóspede
-      guestInitials: selectedGuest?.name
-        ? selectedGuest.name
-            .split(" ")
-            .map((name) => name[0])
-            .join("")
-            .substring(0, 2)
-            .toUpperCase()
-        : "",
-      paymentStatus: "Pendente",
     };
 
     // Chamando a função de callback passada como prop
