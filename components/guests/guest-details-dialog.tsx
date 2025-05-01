@@ -10,6 +10,8 @@ import {
   CalendarIcon,
   HeartIcon,
   ClipboardIcon,
+  HomeIcon,
+  UserCircleIcon,
 } from "lucide-react";
 
 import {
@@ -25,9 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Guest } from "@/app/guests/page";
 
 interface GuestDetailsDialogProps {
-  guest: any;
+  guest: Guest;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -42,186 +46,173 @@ export function GuestDetailsDialog({
   // Função para obter a cor do status
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Atual":
+      case "Hospedado":
         return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800";
-      case "Recente":
+      case "Reservado":
         return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800";
-      case "Anterior":
-        return "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800";
+      case "Sem estadia":
       default:
-        return "";
+        return "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800";
     }
   };
+
+  // Data de criação simulada (para exemplo)
+  const creationDate = new Date(
+    parseInt(guest.id.split("-")[0]) || Date.now()
+  ).toLocaleDateString();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[650px]">
         <DialogHeader>
-          <DialogTitle className="text-xl">Detalhes do Hóspede</DialogTitle>
-          <DialogDescription>
-            Informações completas sobre o hóspede
-          </DialogDescription>
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback>{guest.initials}</AvatarFallback>
+            </Avatar>
+            <div>
+              <DialogTitle className="text-xl">{guest.name}</DialogTitle>
+              <DialogDescription>
+                {guest.cpf || "000.000.000-00"}
+              </DialogDescription>
+            </div>
+          </div>
+          <Badge
+            variant="outline"
+            className={`px-3 py-1 text-sm mt-2 ${getStatusColor(guest.status)}`}
+          >
+            {guest.status}
+          </Badge>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Cabeçalho com informações básicas */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-4">
-              <Avatar className="h-16 w-16">
-                <AvatarImage src={guest.avatar} alt={guest.name} />
-                <AvatarFallback className="text-lg">
-                  {guest.initials}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <div className="text-xl font-semibold">{guest.name}</div>
+        <Tabs defaultValue="detalhes" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="detalhes">Detalhes do Hóspede</TabsTrigger>
+            <TabsTrigger value="historico">Histórico de Hospedagem</TabsTrigger>
+          </TabsList>
+
+          {/* Aba de Detalhes do Hóspede */}
+          <TabsContent value="detalhes" className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
                 <div className="text-sm text-muted-foreground">
-                  {guest.nationality}
+                  Data de Cadastro
                 </div>
-                <div className="mt-2">
-                  <Badge
-                    variant="outline"
-                    className={`px-3 py-1 text-sm ${getStatusColor(
-                      guest.status
-                    )}`}
-                  >
-                    {guest.status}
-                  </Badge>
-                </div>
+                <div className="font-medium">{creationDate}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Status</div>
+                <div className="font-medium">{guest.status}</div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-muted-foreground">Cliente desde</div>
+
+            <Separator />
+
+            <h3 className="text-base font-medium">Informações Pessoais</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">
+                  Nome Completo
+                </div>
+                <div className="font-medium">{guest.name}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">CPF</div>
+                <div className="font-medium">
+                  {guest.cpf || "Não informado"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Email</div>
+                <div className="font-medium">{guest.email}</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">
+                  Data de Nascimento
+                </div>
+                <div className="font-medium">
+                  {guest.birthDate || "Não informado"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Gênero</div>
+                <div className="font-medium">
+                  {guest.genero || "Não informado"}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm text-muted-foreground">Telefone</div>
+                <div className="font-medium">{guest.phone}</div>
+              </div>
+            </div>
+
+            <Separator />
+
+            <h3 className="text-base font-medium">Endereço</h3>
+            <div className="space-y-1">
               <div className="font-medium">
-                {guest.customerSince || "Janeiro 2023"}
+                {guest.endereco || "Não informado"}
               </div>
             </div>
-          </div>
+          </TabsContent>
 
-          <Separator />
-
-          {/* Informações de contato */}
-          <div>
-            <h3 className="text-base font-medium mb-3">
-              Informações de Contato
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <MailIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-muted-foreground">Email</div>
-                </div>
-                <div>{guest.email}</div>
+          {/* Aba de Histórico de Hospedagem */}
+          <TabsContent value="historico" className="py-4">
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-base font-medium">Histórico de Estadias</h3>
               </div>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <PhoneIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-muted-foreground">Telefone</div>
-                </div>
-                <div>{guest.phone}</div>
-              </div>
-            </div>
-          </div>
 
-          {/* Informações pessoais mais detalhadas (simuladas, pois não temos na interface original) */}
-          <div>
-            <h3 className="text-base font-medium mb-3">Informações Pessoais</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-muted-foreground">
-                    Data de Nascimento
+              {guest.lastStay && guest.lastStay !== "" ? (
+                <div className="space-y-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-medium">Quarto 101</h4>
+                          <div className="text-sm text-muted-foreground">
+                            {guest.lastStay}
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className="bg-emerald-50 text-emerald-700 border-emerald-200"
+                        >
+                          Concluída
+                        </Badge>
+                      </div>
+                      <Separator className="my-3" />
+                      <div className="flex justify-between items-center text-sm">
+                        <div>Diárias: 3</div>
+                        <div className="font-medium">Total: R$ 450,00</div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <div className="text-center text-sm text-muted-foreground">
+                    Total de estadias: {guest.totalStays || 0}
                   </div>
                 </div>
-                <div>{guest.birthDate || "23/05/1985"}</div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2 text-sm">
-                  <ClipboardIcon className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-muted-foreground">CPF</div>
-                </div>
-                <div>{guest.cpf || "123.456.789-10"}</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Histórico de estadias */}
-          <div>
-            <h3 className="text-base font-medium mb-3">
-              Histórico de Estadias
-            </h3>
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-sm font-medium">Última estadia</div>
-                  <Badge variant="outline">
-                    {guest.status === "Atual" ? "Em andamento" : "Concluída"}
-                  </Badge>
-                </div>
-                <div className="text-base">{guest.lastStay}</div>
-                <div className="flex items-center justify-between mt-4">
-                  <div>
-                    <div className="text-sm text-muted-foreground">
-                      Total de estadias
-                    </div>
-                    <div className="text-2xl font-bold">{guest.totalStays}</div>
-                  </div>
-                  {guest.loyalty && (
-                    <div>
-                      <div className="text-sm text-muted-foreground">
-                        Pontos de fidelidade
-                      </div>
-                      <div className="text-2xl font-bold">
-                        {guest.loyalty || "320"}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Preferências do hóspede */}
-          <div>
-            <h3 className="text-base font-medium mb-3">Preferências</h3>
-            <div className="flex flex-wrap gap-2">
-              {guest.preferences && guest.preferences.length > 0 ? (
-                guest.preferences.map((pref: string, index: number) => (
-                  <Badge key={index} variant="secondary" className="px-3 py-1">
-                    {pref}
-                  </Badge>
-                ))
               ) : (
-                <div className="text-sm text-muted-foreground">
-                  Nenhuma preferência registrada
+                <div className="text-center py-8 space-y-3">
+                  <div className="bg-muted rounded-full p-3 inline-flex">
+                    <HomeIcon className="h-6 w-6 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium">Nenhuma estadia registrada</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Este hóspede ainda não se hospedou no hotel.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
+          </TabsContent>
+        </Tabs>
 
-          {/* Observações, se existirem */}
-          {guest.notes && (
-            <div className="space-y-2">
-              <h3 className="text-base font-medium">Observações</h3>
-              <div className="bg-muted p-3 rounded-lg text-sm">
-                {guest.notes}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <DialogFooter className="flex justify-between sm:justify-between">
+        <DialogFooter className="mt-6">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Fechar
           </Button>
-          <div className="flex space-x-2">
-            <Button variant="outline">
-              <HeartIcon className="mr-2 h-4 w-4" />
-              Adicionar Preferência
-            </Button>
-            <Button>Editar Hóspede</Button>
-          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
