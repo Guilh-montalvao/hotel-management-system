@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,6 +38,94 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
+import { EditGuestDialog } from "@/components/guests/edit-guest-dialog";
+import { GuestDetailsDialog } from "@/components/guests/guest-details-dialog";
+import { format } from "date-fns";
+
+// Interface que define a estrutura de dados de um hóspede
+export interface Guest {
+  id: string;
+  name: string;
+  initials: string;
+  avatar?: string;
+  email: string;
+  phone: string;
+  status: "Hospedado" | "Reservado" | "Sem estadia";
+  birthDate?: string;
+  cpf?: string;
+  genero?: string;
+  endereco?: string;
+  // Campos mantidos para compatibilidade
+  nationality: string;
+  lastStay: string;
+  totalStays: number;
+  preferences: string[];
+}
+
+// Serviço de localStorage para persistência de dados
+const GuestService = {
+  // Chave usada no localStorage
+  STORAGE_KEY: "hotel_guests_data",
+
+  // Obter todos os hóspedes
+  getAll: (): Guest[] => {
+    if (typeof window === "undefined") return initialGuestData;
+
+    const stored = localStorage.getItem(GuestService.STORAGE_KEY);
+    if (!stored) {
+      // Inicializa com dados de exemplo na primeira vez
+      localStorage.setItem(
+        GuestService.STORAGE_KEY,
+        JSON.stringify(initialGuestData)
+      );
+      return initialGuestData;
+    }
+
+    return JSON.parse(stored);
+  },
+
+  // Salvar todos os hóspedes
+  saveAll: (guests: Guest[]): void => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(GuestService.STORAGE_KEY, JSON.stringify(guests));
+  },
+
+  // Adicionar um novo hóspede
+  add: (guest: Guest): Guest[] => {
+    const guests = GuestService.getAll();
+    const updatedGuests = [guest, ...guests];
+    GuestService.saveAll(updatedGuests);
+    return updatedGuests;
+  },
+
+  // Atualizar um hóspede existente
+  update: (updatedGuest: Guest): Guest[] => {
+    const guests = GuestService.getAll();
+    const updatedGuests = guests.map((guest) =>
+      guest.id === updatedGuest.id ? updatedGuest : guest
+    );
+    GuestService.saveAll(updatedGuests);
+    return updatedGuests;
+  },
+
+  // Remover um hóspede
+  remove: (id: string): Guest[] => {
+    const guests = GuestService.getAll();
+    const updatedGuests = guests.filter((guest) => guest.id !== id);
+    GuestService.saveAll(updatedGuests);
+    return updatedGuests;
+  },
+};
+
+// Criar o contexto para compartilhar funções com os componentes filhos
+interface GuestsPageContextType {
+  handleEditGuest: (guest: Guest) => void;
+  handleViewGuestDetails: (guest: Guest) => void;
+}
+
+const GuestsPageContext = createContext<GuestsPageContextType | undefined>(
+  undefined
+);
 
 /**
  * Página de gerenciamento de hóspedes
@@ -47,44 +135,55 @@ export default function GuestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
-  const [filteredGuests, setFilteredGuests] = useState(guestData);
+  const [guestData, setGuestData] = useState<Guest[]>([]);
+  const [filteredGuests, setFilteredGuests] = useState<Guest[]>([]);
   const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
+  const [showEditGuestDialog, setShowEditGuestDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+
+  // Carregar dados do localStorage quando o componente montar
+  useEffect(() => {
+    const guests = GuestService.getAll();
+    setGuestData(guests);
+  }, []);
 
   // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
+    // Aplicando os filtros
     let results = [...guestData];
 
     // Filtrar por tipo de status (aba)
     if (currentTab !== "all") {
-      const statusMap = {
-        current: "Atual",
-        recent: "Recente",
+      const statusMappings = {
+        current: "Hospedado",
+        recent: "Reservado",
+        past: "Sem estadia",
       };
 
-      if (statusMap[currentTab as keyof typeof statusMap]) {
-        results = results.filter(
-          (guest) =>
-            guest.status === statusMap[currentTab as keyof typeof statusMap]
-        );
+      const tabStatus =
+        statusMappings[currentTab as keyof typeof statusMappings];
+      if (tabStatus) {
+        results = results.filter((guest) => guest.status === tabStatus);
       }
     }
 
     // Filtrar por status selecionado
     if (statusFilter !== "all") {
-      const statusMap = {
-        current: "Atual",
-        past: "Anterior",
+      const statusMappings = {
+        current: "Hospedado",
+        recent: "Reservado",
+        past: "Sem estadia",
       };
 
-      if (statusMap[statusFilter as keyof typeof statusMap]) {
-        results = results.filter(
-          (guest) =>
-            guest.status === statusMap[statusFilter as keyof typeof statusMap]
-        );
+      const filterStatus =
+        statusMappings[statusFilter as keyof typeof statusMappings];
+      if (filterStatus) {
+        results = results.filter((guest) => guest.status === filterStatus);
       }
     }
 
-    // Filtrar por pesquisa (nome, email, telefone, nacionalidade)
+    // Filtrar por pesquisa (nome, email, telefone, CPF)
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       results = results.filter(
@@ -92,12 +191,12 @@ export default function GuestsPage() {
           guest.name.toLowerCase().includes(query) ||
           guest.email.toLowerCase().includes(query) ||
           guest.phone.toLowerCase().includes(query) ||
-          guest.nationality.toLowerCase().includes(query)
+          (guest.cpf && guest.cpf.toLowerCase().includes(query))
       );
     }
 
     setFilteredGuests(results);
-  }, [searchQuery, statusFilter, currentTab]);
+  }, [searchQuery, statusFilter, currentTab, guestData]);
 
   // Função para limpar filtros
   const clearFilters = () => {
@@ -120,199 +219,273 @@ export default function GuestsPage() {
     // Processando os dados para o formato usado na aplicação
     const newGuest: Guest = {
       id: (Date.now() + Math.random()).toString(36), // Gera um ID temporário no backend (simulado)
-      name: data.name,
-      initials: data.initials,
+      name: `${data.nome} ${data.sobrenome}`,
+      initials: `${data.nome[0]}${data.sobrenome[0]}`.toUpperCase(),
       email: data.email,
       phone: data.telefone,
-      nationality: data.nationality,
-      status: data.status,
-      lastStay: data.lastStay,
-      totalStays: data.totalStays,
-      preferences: data.preferences || [],
+      nationality: "Brasil", // Valor padrão, podemos adicionar no formulário se necessário
+      status: "Sem estadia", // Valor padrão para novos hóspedes
+      lastStay: "", // Novo hóspede não tem estadia anterior
+      totalStays: 0, // Novo hóspede não tem estadias
+      preferences: [],
+      cpf: data.cpf || "",
+      birthDate: data.dataNascimento
+        ? format(new Date(data.dataNascimento), "dd/MM/yyyy")
+        : "",
+      genero: data.genero || "",
+      endereco: data.descricao || "",
     };
 
-    // Adicionando o novo hóspede ao início da lista de dados
-    guestData.unshift(newGuest);
-    
-    // Atualizando a lista filtrada
-    setFilteredGuests([...guestData]);
+    // Adicionando o novo hóspede no serviço
+    const updatedGuests = GuestService.add(newGuest);
+    setGuestData(updatedGuests);
+
+    console.log("Novo hóspede adicionado:", newGuest);
+  };
+
+  // Função para atualizar um hóspede existente
+  const handleUpdateGuest = (updatedGuest: Guest) => {
+    console.log("Atualizando hóspede:", updatedGuest);
+
+    // Verificar se os campos obrigatórios estão presentes
+    if (!updatedGuest.name || !updatedGuest.email || !updatedGuest.phone) {
+      console.error("Dados inválidos para atualização:", updatedGuest);
+      return;
+    }
+
+    // Atualizar o hóspede no serviço
+    const updatedGuests = GuestService.update(updatedGuest);
+    setGuestData(updatedGuests);
+  };
+
+  // Função para abrir o diálogo de edição
+  const handleEditGuest = (guest: Guest) => {
+    console.log("Editando hóspede:", guest);
+    setSelectedGuest(guest);
+    setShowEditGuestDialog(true);
+  };
+
+  // Função para abrir o diálogo de detalhes
+  const handleViewGuestDetails = (guest: Guest) => {
+    console.log("Visualizando detalhes do hóspede:", guest);
+    setSelectedGuest(guest);
+    setShowDetailsDialog(true);
+  };
+
+  // Função para excluir um hóspede (não implementada na UI)
+  const handleDeleteGuest = (id: string) => {
+    const updatedGuests = GuestService.remove(id);
+    setGuestData(updatedGuests);
   };
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">
-          Gerenciamento de Hóspedes
-        </h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            Filtrar
-          </Button>
-          <Button variant="outline" size="sm" onClick={clearFilters}>
-            <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            Limpar Filtros
-          </Button>
-          <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
-            <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            Adicionar Hóspede
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total de Hóspedes
-            </CardTitle>
-            <UsersIcon
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1.248</div>
-            <p className="text-xs text-muted-foreground">
-              Todos os hóspedes registrados
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Hóspedes Atuais
-            </CardTitle>
-            <UserIcon
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">86</div>
-            <p className="text-xs text-muted-foreground">
-              Atualmente hospedados
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Novos Registros
-            </CardTitle>
-            <PlusIcon
-              className="h-4 w-4 text-muted-foreground"
-              aria-hidden="true"
-            />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">18</div>
-            <p className="text-xs text-muted-foreground">Esta semana</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Diretório de Hóspedes</CardTitle>
-              <CardDescription>
-                Visualize e gerencie perfis de hóspedes
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative w-[250px]">
-                <SearchIcon
-                  className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  type="search"
-                  placeholder="Buscar hóspedes..."
-                  className="pl-8"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-                {searchQuery && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-full"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              <Select value={statusFilter} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os Hóspedes</SelectItem>
-                  <SelectItem value="current">Hóspedes Atuais</SelectItem>
-                  <SelectItem value="past">Hóspedes Anteriores</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+    <GuestsPageContext.Provider
+      value={{ handleEditGuest, handleViewGuestDetails }}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight">
+            Gerenciamento de Hóspedes
+          </h1>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm">
+              <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              Filtrar
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearFilters}>
+              <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              Limpar Filtros
+            </Button>
+            <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
+              <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              Adicionar Hóspede
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            defaultValue="all"
-            className="space-y-4"
-            onValueChange={handleTabChange}
-          >
-            <TabsList>
-              <TabsTrigger value="all">Todos</TabsTrigger>
-              <TabsTrigger value="current">Atuais</TabsTrigger>
-              <TabsTrigger value="recent">Recentes</TabsTrigger>
-            </TabsList>
+        </div>
 
-            {filteredGuests.length > 0 ? (
-              <TabsContent value={currentTab} className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Hóspede</TableHead>
-                      <TableHead>Contato</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Última Estadia</TableHead>
-                      <TableHead>Total de Estadias</TableHead>
-                      <TableHead>Preferências</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredGuests.map((guest) => (
-                      <GuestRow key={guest.id} guest={guest} />
-                    ))}
-                  </TableBody>
-                </Table>
-              </TabsContent>
-            ) : (
-              <div className="flex flex-col items-center justify-center p-8 text-center">
-                <div className="text-muted-foreground mb-4">
-                  Nenhum hóspede encontrado com os filtros atuais.
-                </div>
-                <Button onClick={clearFilters}>
-                  <RefreshCwIcon className="mr-2 h-4 w-4" />
-                  Limpar Filtros
-                </Button>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Total de Hóspedes
+              </CardTitle>
+              <UsersIcon
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{guestData.length}</div>
+              <p className="text-xs text-muted-foreground">
+                Todos os hóspedes registrados
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Hóspedes Atuais
+              </CardTitle>
+              <UserIcon
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {
+                  guestData.filter((guest) => guest.status === "Hospedado")
+                    .length
+                }
               </div>
-            )}
-          </Tabs>
-        </CardContent>
-      </Card>
+              <p className="text-xs text-muted-foreground">
+                Atualmente hospedados
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">
+                Novos Registros
+              </CardTitle>
+              <PlusIcon
+                className="h-4 w-4 text-muted-foreground"
+                aria-hidden="true"
+              />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {
+                  guestData.filter((guest) => guest.status === "Reservado")
+                    .length
+                }
+              </div>
+              <p className="text-xs text-muted-foreground">Reservados</p>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Diálogo para adicionar novo hóspede */}
-      <AddGuestDialog
-        open={showAddGuestDialog}
-        onOpenChange={setShowAddGuestDialog}
-        onAddGuest={handleAddGuest}
-      />
-    </div>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Diretório de Hóspedes</CardTitle>
+                <CardDescription>
+                  Visualize e gerencie perfis de hóspedes
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative w-[250px]">
+                  <SearchIcon
+                    className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <Input
+                    type="search"
+                    placeholder="Buscar hóspedes..."
+                    className="pl-8"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  {searchQuery && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <Select value={statusFilter} onValueChange={handleStatusChange}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os Status</SelectItem>
+                    <SelectItem value="current">Hospedados</SelectItem>
+                    <SelectItem value="recent">Reservados</SelectItem>
+                    <SelectItem value="past">Sem Estadia</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Tabs
+              defaultValue="all"
+              className="space-y-4"
+              onValueChange={handleTabChange}
+            >
+              <TabsList>
+                <TabsTrigger value="all">Todos</TabsTrigger>
+                <TabsTrigger value="current">Hospedados</TabsTrigger>
+                <TabsTrigger value="recent">Reservados</TabsTrigger>
+              </TabsList>
+
+              {filteredGuests.length > 0 ? (
+                <TabsContent value={currentTab} className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Hóspede</TableHead>
+                        <TableHead>Contato</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Data de Nascimento</TableHead>
+                        <TableHead>Gênero</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredGuests.map((guest) => (
+                        <GuestRow key={guest.id} guest={guest} />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TabsContent>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-center">
+                  <div className="text-muted-foreground mb-4">
+                    Nenhum hóspede encontrado com os filtros atuais.
+                  </div>
+                  <Button onClick={clearFilters}>
+                    <RefreshCwIcon className="mr-2 h-4 w-4" />
+                    Limpar Filtros
+                  </Button>
+                </div>
+              )}
+            </Tabs>
+          </CardContent>
+        </Card>
+
+        {/* Diálogo para adicionar novo hóspede */}
+        <AddGuestDialog
+          open={showAddGuestDialog}
+          onOpenChange={setShowAddGuestDialog}
+          onAddGuest={handleAddGuest}
+        />
+
+        {/* Diálogo para editar hóspede */}
+        {selectedGuest && (
+          <EditGuestDialog
+            open={showEditGuestDialog}
+            onOpenChange={setShowEditGuestDialog}
+            guest={selectedGuest}
+            onUpdateGuest={handleUpdateGuest}
+          />
+        )}
+
+        {/* Diálogo para visualizar detalhes do hóspede */}
+        {selectedGuest && (
+          <GuestDetailsDialog
+            open={showDetailsDialog}
+            onOpenChange={setShowDetailsDialog}
+            guest={selectedGuest}
+          />
+        )}
+      </div>
+    </GuestsPageContext.Provider>
   );
 }
 
@@ -321,6 +494,15 @@ export default function GuestsPage() {
  * @param guest - Dados do hóspede a ser exibido
  */
 function GuestRow({ guest }: { guest: Guest }) {
+  // Obter a função de edição do contexto da página
+  const guestsPageContext = useContext(GuestsPageContext);
+
+  if (!guestsPageContext) {
+    throw new Error("GuestRow deve ser usado dentro de um GuestsPageContext");
+  }
+
+  const { handleEditGuest, handleViewGuestDetails } = guestsPageContext;
+
   return (
     <TableRow>
       <TableCell>
@@ -334,7 +516,7 @@ function GuestRow({ guest }: { guest: Guest }) {
               {guest.name}
             </div>
             <div className="text-xs text-muted-foreground">
-              {guest.nationality}
+              {guest.cpf || "000.000.000-00"}
             </div>
           </div>
         </div>
@@ -347,9 +529,9 @@ function GuestRow({ guest }: { guest: Guest }) {
         <Badge
           variant="outline"
           className={
-            guest.status === "Atual"
+            guest.status === "Hospedado"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
-              : guest.status === "Recente"
+              : guest.status === "Reservado"
               ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800"
               : "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
           }
@@ -357,23 +539,20 @@ function GuestRow({ guest }: { guest: Guest }) {
           {guest.status}
         </Badge>
       </TableCell>
-      <TableCell>{guest.lastStay}</TableCell>
-      <TableCell>{guest.totalStays}</TableCell>
-      <TableCell>
-        <div className="flex flex-wrap gap-1">
-          {guest.preferences.map((pref, index) => (
-            <Badge key={index} variant="secondary" className="text-xs">
-              {pref}
-            </Badge>
-          ))}
-        </div>
-      </TableCell>
+      <TableCell>{guest.birthDate || "01/01/1990"}</TableCell>
+      <TableCell>{guest.genero || "Não informado"}</TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm">
-            Visualizar
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleViewGuestDetails(guest)}
+          >
+            Ver detalhes
           </Button>
-          <Button size="sm">Editar</Button>
+          <Button size="sm" onClick={() => handleEditGuest(guest)}>
+            Editar
+          </Button>
         </div>
       </TableCell>
     </TableRow>
@@ -381,26 +560,9 @@ function GuestRow({ guest }: { guest: Guest }) {
 }
 
 /**
- * Interface que define a estrutura de dados de um hóspede
- */
-interface Guest {
-  id: string;
-  name: string;
-  initials: string;
-  avatar?: string;
-  email: string;
-  phone: string;
-  nationality: string;
-  status: "Atual" | "Recente" | "Anterior";
-  lastStay: string;
-  totalStays: number;
-  preferences: string[];
-}
-
-/**
  * Dados de exemplo para exibição na tabela de hóspedes
  */
-const guestData: Guest[] = [
+const initialGuestData: Guest[] = [
   {
     id: "1",
     name: "Ana Silva",
@@ -408,10 +570,13 @@ const guestData: Guest[] = [
     email: "ana.silva@email.com",
     phone: "(11) 98765-4321",
     nationality: "Brasil",
-    status: "Atual",
+    status: "Hospedado",
     lastStay: "12/06/2023 - 15/06/2023",
     totalStays: 5,
     preferences: ["Vista para o mar", "Andar alto", "Café da manhã"],
+    cpf: "123.456.789-00",
+    birthDate: "10/05/1990",
+    genero: "Feminino",
   },
   {
     id: "2",
@@ -420,10 +585,13 @@ const guestData: Guest[] = [
     email: "carlos.oliveira@email.com",
     phone: "(21) 99876-5432",
     nationality: "Portugal",
-    status: "Recente",
+    status: "Reservado",
     lastStay: "05/06/2023 - 10/06/2023",
     totalStays: 3,
     preferences: ["Quarto silencioso", "Academia"],
+    cpf: "234.567.890-00",
+    birthDate: "01/01/1985",
+    genero: "Masculino",
   },
   {
     id: "3",
@@ -432,93 +600,12 @@ const guestData: Guest[] = [
     email: "juliana.santos@email.com",
     phone: "(31) 98765-1234",
     nationality: "Brasil",
-    status: "Anterior",
+    status: "Sem estadia",
     lastStay: "20/05/2023 - 25/05/2023",
     totalStays: 2,
     preferences: ["Cama king", "Serviço de quarto"],
-  },
-  {
-    id: "4",
-    name: "Rafael Mendes",
-    initials: "RM",
-    email: "rafael.mendes@email.com",
-    phone: "(11) 97654-3210",
-    nationality: "Brasil",
-    status: "Atual",
-    lastStay: "10/06/2023 - 17/06/2023",
-    totalStays: 7,
-    preferences: ["Suite luxo", "Champagne", "Transfer"],
-  },
-  {
-    id: "5",
-    name: "Fernanda Costa",
-    initials: "FC",
-    email: "fernanda.costa@email.com",
-    phone: "(41) 98765-8765",
-    nationality: "Brasil",
-    status: "Recente",
-    lastStay: "01/06/2023 - 05/06/2023",
-    totalStays: 4,
-    preferences: ["Vista para cidade", "Vegetariano"],
-  },
-  {
-    id: "6",
-    name: "Miguel Pereira",
-    initials: "MP",
-    email: "miguel.pereira@email.com",
-    phone: "+351 912 345 678",
-    nationality: "Portugal",
-    status: "Anterior",
-    lastStay: "10/05/2023 - 15/05/2023",
-    totalStays: 1,
-    preferences: ["Quarto para fumantes", "Bar"],
-  },
-  {
-    id: "7",
-    name: "Sophia Almeida",
-    initials: "SA",
-    email: "sophia.almeida@email.com",
-    phone: "(11) 99876-1234",
-    nationality: "Brasil",
-    status: "Atual",
-    lastStay: "08/06/2023 - 18/06/2023",
-    totalStays: 10,
-    preferences: ["Babá", "Menu infantil", "Piscina"],
-  },
-  {
-    id: "8",
-    name: "Lucas Ferreira",
-    initials: "LF",
-    email: "lucas.ferreira@email.com",
-    phone: "(21) 98712-3456",
-    nationality: "Brasil",
-    status: "Recente",
-    lastStay: "03/06/2023 - 07/06/2023",
-    totalStays: 2,
-    preferences: ["Academia 24h", "Café da manhã"],
-  },
-  {
-    id: "9",
-    name: "Amanda Ribeiro",
-    initials: "AR",
-    email: "amanda.ribeiro@email.com",
-    phone: "(51) 99876-5432",
-    nationality: "Brasil",
-    status: "Anterior",
-    lastStay: "15/05/2023 - 20/05/2023",
-    totalStays: 3,
-    preferences: ["Spa", "Serviço de quarto", "Late check-out"],
-  },
-  {
-    id: "10",
-    name: "Diego Rocha",
-    initials: "DR",
-    email: "diego.rocha@email.com",
-    phone: "(31) 98888-7777",
-    nationality: "Brasil",
-    status: "Atual",
-    lastStay: "09/06/2023 - 19/06/2023",
-    totalStays: 6,
-    preferences: ["Wi-Fi premium", "Estacionamento"],
+    cpf: "345.678.901-00",
+    birthDate: "05/05/1995",
+    genero: "Feminino",
   },
 ];
