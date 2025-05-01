@@ -230,7 +230,9 @@ export default function GuestsPage() {
       preferences: [],
       cpf: data.cpf || "",
       birthDate: data.dataNascimento
-        ? format(new Date(data.dataNascimento), "dd/MM/yyyy")
+        ? typeof data.dataNascimento === "string"
+          ? data.dataNascimento
+          : format(data.dataNascimento, "dd/MM/yyyy")
         : "",
       genero: data.genero || "",
       endereco: data.descricao || "",
@@ -482,6 +484,7 @@ export default function GuestsPage() {
             open={showDetailsDialog}
             onOpenChange={setShowDetailsDialog}
             guest={selectedGuest}
+            onDeleteGuest={handleDeleteGuest}
           />
         )}
       </div>

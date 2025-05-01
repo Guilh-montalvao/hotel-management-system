@@ -153,7 +153,8 @@ export function AddRoomDialog({
 
             {selectedType && (
               <div className="text-sm">
-                <span className="font-medium">Preço:</span> {getPrice()} / noite
+                <span className="font-medium">Preço:</span> {getPrice()} /
+                diária
               </div>
             )}
 

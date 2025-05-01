@@ -146,7 +146,9 @@ export function AddGuestDialog({
     // Criando um objeto de hóspede com os dados do formulário
     const guestData = {
       ...data,
-      dataNascimento: format(data.dataNascimento, "dd/MM/yyyy"),
+      // Enviamos diretamente o objeto Date, a formatação será feita na página
+      // Isso evita problemas de conversão dupla
+      dataNascimento: data.dataNascimento,
       name: `${data.nome} ${data.sobrenome}`,
     };
 

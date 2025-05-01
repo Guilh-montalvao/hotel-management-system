@@ -157,7 +157,7 @@ export function BookingDetailsDialog({
                 </div>
                 <div className="text-xs text-muted-foreground">
                   {booking.nights || "3"}{" "}
-                  {booking.nights === 1 ? "noite" : "noites"}
+                  {booking.nights === 1 ? "diária" : "diárias"}
                 </div>
               </div>
             </CardContent>

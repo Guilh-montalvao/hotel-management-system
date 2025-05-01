@@ -396,7 +396,7 @@ function RoomCard({
       <CardContent className="p-4 pt-0">
         <div className="flex justify-between items-center">
           <div className="text-sm">
-            <span className="font-medium">R${room.rate}</span> / noite
+            <span className="font-medium">R${room.rate}</span> / diária
           </div>
           <div className="flex gap-2">
             <Button

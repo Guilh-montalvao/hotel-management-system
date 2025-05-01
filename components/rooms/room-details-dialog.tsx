@@ -129,7 +129,7 @@ export function RoomDetailsDialog({
             </Badge>
           </div>
           <DialogDescription>
-            {room.type} - R${room.rate}/noite
+            {room.type} - R${room.rate}/diária
           </DialogDescription>
         </DialogHeader>
 
@@ -167,7 +167,7 @@ export function RoomDetailsDialog({
                         <div className="flex justify-between items-center py-1 border-b border-muted">
                           <span className="text-muted-foreground">Tarifa:</span>
                           <span className="font-medium">
-                            R${room.rate}/noite
+                            R${room.rate}/diária
                           </span>
                         </div>
                         <div className="flex justify-between items-center py-1 border-b border-muted">
