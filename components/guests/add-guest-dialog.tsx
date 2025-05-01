@@ -291,7 +291,7 @@ export function AddGuestDialog({
                 control={form.control}
                 name="genero"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className="flex flex-col">
                     <FormLabel>Gênero</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
@@ -332,23 +332,20 @@ export function AddGuestDialog({
               )}
             />
 
-            {/* Descrição (Opcional) */}
+            {/* Endereço (Opcional) */}
             <FormField
               control={form.control}
               name="descricao"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Descrição (Opcional)</FormLabel>
+                  <FormLabel>Endereço (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Adicione informações adicionais, como preferências ou necessidades especiais"
+                      placeholder="Informe o endereço completo do hóspede (Rua, Número, Bairro, Cidade, Estado, CEP)"
                       className="resize-none"
                       {...field}
                     />
                   </FormControl>
-                  <FormDescription>
-                    Informações adicionais sobre o hóspede
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
