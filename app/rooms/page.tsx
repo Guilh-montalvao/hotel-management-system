@@ -140,6 +140,21 @@ export default function RoomsPage() {
     setShowDetailsDialog(true);
   };
 
+  // Função para excluir um quarto
+  const handleDeleteRoom = (number: string) => {
+    // Filtra o quarto a ser excluído
+    const updatedRooms = roomData.filter((room) => room.number !== number);
+
+    // Atualiza os dados
+    const filteredIndex = roomData.findIndex((room) => room.number === number);
+    if (filteredIndex !== -1) {
+      roomData.splice(filteredIndex, 1);
+    }
+
+    // Atualiza a lista filtrada
+    setFilteredRooms([...updatedRooms]);
+  };
+
   // Disponibilizando a função para o componente RoomCard
   useEffect(() => {
     window.roomDetailsHandler = handleViewRoomDetails;
@@ -337,6 +352,7 @@ export default function RoomsPage() {
         open={showDetailsDialog}
         onOpenChange={setShowDetailsDialog}
         room={selectedRoom}
+        onDeleteRoom={handleDeleteRoom}
       />
     </div>
   );
