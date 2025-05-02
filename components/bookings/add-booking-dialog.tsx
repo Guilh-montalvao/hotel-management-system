@@ -6,8 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon, CheckIcon, ChevronsUpDown } from "lucide-react";
-import { useBookingStore } from "@/lib/store";
+import {
+  CalendarIcon,
+  CheckIcon,
+  ChevronsUpDown,
+  PlusIcon,
+} from "lucide-react";
+import { useBookingStore, useGuestStore } from "@/lib/store";
+import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 
 import {
   Dialog,
@@ -93,16 +99,6 @@ const availableRooms = [
   { value: "302", label: "302 - Suíte" },
 ];
 
-// Lista de hóspedes (normalmente seria buscada da API)
-// Em produção, isso seria carregado de uma API ou serviço
-const guests = [
-  { id: "1", name: "João Silva", email: "joao@exemplo.com" },
-  { id: "2", name: "Maria Souza", email: "maria@exemplo.com" },
-  { id: "3", name: "Pedro Santos", email: "pedro@exemplo.com" },
-  { id: "4", name: "Ana Oliveira", email: "ana@exemplo.com" },
-  { id: "5", name: "Carlos Ferreira", email: "carlos@exemplo.com" },
-];
-
 /**
  * Interface para as propriedades do componente
  */
@@ -119,6 +115,13 @@ export function AddBookingDialog({
 }: AddBookingDialogProps) {
   // Obter o quarto selecionado do store global
   const { selectedRoom } = useBookingStore();
+
+  // Obter os hóspedes do store global
+  const guests = useGuestStore((state) => state.guests);
+  const addGuest = useGuestStore((state) => state.addGuest);
+
+  // Estado para controlar o diálogo de adicionar hóspede
+  const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
 
   // Configuração do formulário com validação
   const form = useForm<FormValues>({
@@ -150,7 +153,7 @@ export function AddBookingDialog({
         form.setValue("guestEmail", selectedGuest.email);
       }
     }
-  }, [form.watch("guestId")]);
+  }, [form.watch("guestId"), guests]);
 
   // Função para lidar com a submissão do formulário
   const onSubmit = (data: FormValues) => {
@@ -177,237 +180,331 @@ export function AddBookingDialog({
     onOpenChange(false);
   };
 
+  // Função para adicionar um novo hóspede
+  const handleAddGuest = (data: any) => {
+    // Converte os dados do formulário para o formato esperado pelo store
+    const guestData = {
+      name: `${data.nome} ${data.sobrenome}`,
+      email: data.email,
+      cpf: data.cpf,
+      status: "Ativo", // Status padrão para novo hóspede
+      telefone: data.telefone,
+      dataNascimento: data.dataNascimento,
+      genero: data.genero,
+      descricao: data.descricao,
+      nome: data.nome,
+      sobrenome: data.sobrenome,
+    };
+
+    // Adiciona o hóspede ao store global
+    addGuest(guestData);
+
+    console.log("Novo hóspede adicionado:", guestData);
+
+    // Fecha o diálogo de adicionar hóspede
+    setShowAddGuestDialog(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Nova Reserva</DialogTitle>
-          <DialogDescription>
-            Preencha os detalhes para criar uma nova reserva.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Nova Reserva</DialogTitle>
+            <DialogDescription>
+              Preencha os detalhes para criar uma nova reserva.
+            </DialogDescription>
+          </DialogHeader>
 
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Campo de seleção de hóspede */}
-            <FormField
-              control={form.control}
-              name="guestId"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Nome do Hóspede</FormLabel>
-                  <Popover
-                    open={guestComboboxOpen}
-                    onOpenChange={setGuestComboboxOpen}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={guestComboboxOpen}
-                          className="w-full justify-between"
-                        >
-                          {field.value
-                            ? guests.find((guest) => guest.id === field.value)
-                                ?.name
-                            : "Selecione um hóspede"}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0">
-                      <Command>
-                        <CommandInput placeholder="Buscar hóspede..." />
-                        <CommandEmpty>Nenhum hóspede encontrado.</CommandEmpty>
-                        <CommandGroup>
-                          {guests.map((guest) => (
-                            <CommandItem
-                              key={guest.id}
-                              value={guest.id}
-                              onSelect={(value) => {
-                                form.setValue("guestId", value);
-                                setGuestComboboxOpen(false);
-                              }}
-                            >
-                              <CheckIcon
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  guest.id === field.value
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                                )}
-                              />
-                              {guest.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              {/* Campo de seleção de hóspede */}
+              <FormField
+                control={form.control}
+                name="guestId"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Nome do Hóspede</FormLabel>
+                    <Popover
+                      open={guestComboboxOpen}
+                      onOpenChange={setGuestComboboxOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={guestComboboxOpen}
+                            className="w-full justify-between"
+                          >
+                            {field.value
+                              ? guests.find((guest) => guest.id === field.value)
+                                  ?.name
+                              : "Selecione um hóspede"}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[400px] p-0">
+                        <Command>
+                          <div className="flex items-center border-b relative">
+                            <CommandInput
+                              placeholder="Buscar hóspede..."
+                              className="flex-1"
+                            />
+                            <div className="absolute right-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="default"
+                                className="px-2 min-w-7 h-7 rounded-full"
+                                onClick={() => {
+                                  // Fechar o popover atual
+                                  setGuestComboboxOpen(false);
 
-            {/* Campo de email do hóspede */}
-            <FormField
-              control={form.control}
-              name="guestEmail"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="email@exemplo.com"
-                      {...field}
-                      disabled
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                                  // Abrir o diálogo de adicionar hóspede
+                                  setShowAddGuestDialog(true);
+                                }}
+                              >
+                                <PlusIcon className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          <CommandEmpty>
+                            Nenhum hóspede encontrado.
+                          </CommandEmpty>
+                          <CommandGroup>
+                            {guests.map((guest) => (
+                              <CommandItem
+                                key={guest.id}
+                                value={`${guest.id} ${guest.name} ${guest.cpf}`}
+                                onSelect={(value) => {
+                                  const guestId = value.split(" ")[0];
+                                  form.setValue("guestId", guestId);
+                                  setGuestComboboxOpen(false);
+                                }}
+                                className="flex flex-col items-start py-3"
+                              >
+                                <div className="flex w-full items-center justify-between">
+                                  <div className="flex items-center">
+                                    <CheckIcon
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        guest.id === field.value
+                                          ? "opacity-100"
+                                          : "opacity-0"
+                                      )}
+                                    />
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-900 mr-2 text-sm font-medium">
+                                      {guest.name
+                                        .split(" ")
+                                        .map((name) => name[0])
+                                        .slice(0, 2)
+                                        .join("")}
+                                    </div>
+                                    <div className="flex-1">
+                                      <div className="font-medium">
+                                        {guest.name}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {guest.cpf}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      "text-xs font-medium px-2 py-1 rounded-full",
+                                      guest.status === "Ativo"
+                                        ? "bg-green-100 text-green-800"
+                                        : guest.status === "Pendente"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-red-100 text-red-800"
+                                    )}
+                                  >
+                                    {guest.status}
+                                  </div>
+                                </div>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Campo de seleção de quarto */}
-            <FormField
-              control={form.control}
-              name="room"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quarto</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+              {/* Campo de email do hóspede */}
+              <FormField
+                control={form.control}
+                name="guestEmail"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o quarto" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {availableRooms.map((room) => (
-                        <SelectItem key={room.value} value={room.value}>
-                          {room.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Campo de data de check-in */}
-            <FormField
-              control={form.control}
-              name="checkIn"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data de Check-in</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className="w-full pl-3 text-left font-normal"
-                        >
-                          {field.value ? (
-                            format(field.value, "dd/MM/yyyy", { locale: ptBR })
-                          ) : (
-                            <span>Selecione uma data</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                        locale={ptBR}
+                      <Input
+                        type="email"
+                        placeholder="email@exemplo.com"
+                        {...field}
+                        disabled
                       />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Campo de data de check-out */}
-            <FormField
-              control={form.control}
-              name="checkOut"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data de Check-out</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          className="w-full pl-3 text-left font-normal"
-                        >
-                          {field.value ? (
-                            format(field.value, "dd/MM/yyyy", { locale: ptBR })
-                          ) : (
-                            <span>Selecione uma data</span>
-                          )}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        initialFocus
-                        locale={ptBR}
-                        fromDate={form.getValues("checkIn") || new Date()}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Campo de método de pagamento */}
-            <FormField
-              control={form.control}
-              name="paymentMethod"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Método de Pagamento</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o método de pagamento" />
-                      </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
-                      {paymentMethods.map((method) => (
-                        <SelectItem key={method.value} value={method.value}>
-                          {method.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Cancelar</Button>
-              </DialogClose>
-              <Button type="submit">Criar Reserva</Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              {/* Campo de seleção de quarto */}
+              <FormField
+                control={form.control}
+                name="room"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quarto</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o quarto" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {availableRooms.map((room) => (
+                          <SelectItem key={room.value} value={room.value}>
+                            {room.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Campo de data de check-in */}
+              <FormField
+                control={form.control}
+                name="checkIn"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Check-in</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className="w-full pl-3 text-left font-normal"
+                          >
+                            {field.value ? (
+                              format(field.value, "dd/MM/yyyy", {
+                                locale: ptBR,
+                              })
+                            ) : (
+                              <span>Selecione uma data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                          locale={ptBR}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Campo de data de check-out */}
+              <FormField
+                control={form.control}
+                name="checkOut"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Data de Check-out</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            className="w-full pl-3 text-left font-normal"
+                          >
+                            {field.value ? (
+                              format(field.value, "dd/MM/yyyy", {
+                                locale: ptBR,
+                              })
+                            ) : (
+                              <span>Selecione uma data</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          initialFocus
+                          locale={ptBR}
+                          fromDate={form.getValues("checkIn") || new Date()}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Campo de método de pagamento */}
+              <FormField
+                control={form.control}
+                name="paymentMethod"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Método de Pagamento</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o método de pagamento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {paymentMethods.map((method) => (
+                          <SelectItem key={method.value} value={method.value}>
+                            {method.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter>
+                <DialogClose asChild>
+                  <Button variant="outline">Cancelar</Button>
+                </DialogClose>
+                <Button type="submit">Criar Reserva</Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo para adicionar novo hóspede */}
+      <AddGuestDialog
+        open={showAddGuestDialog}
+        onOpenChange={setShowAddGuestDialog}
+        onAddGuest={handleAddGuest}
+      />
+    </>
   );
 }

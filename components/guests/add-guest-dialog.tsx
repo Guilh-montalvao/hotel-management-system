@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
+import { useGuestStore } from "@/lib/store";
 
 import {
   Dialog,
@@ -92,6 +93,9 @@ export function AddGuestDialog({
   onOpenChange,
   onAddGuest,
 }: AddGuestDialogProps) {
+  // Obter a função para adicionar hóspede do store global
+  const addGuestToStore = useGuestStore((state) => state.addGuest);
+
   // Configuração do formulário com validação
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -150,10 +154,18 @@ export function AddGuestDialog({
       // Isso evita problemas de conversão dupla
       dataNascimento: data.dataNascimento,
       name: `${data.nome} ${data.sobrenome}`,
+      status: "Ativo", // Status padrão para novo hóspede
+      cpf: data.cpf,
+      email: data.email,
     };
 
-    // Chamando a função de callback passada como prop
-    onAddGuest?.(guestData);
+    // Adicionar ao store global
+    addGuestToStore(guestData);
+
+    // Chamando a função de callback passada como prop, se existir
+    if (onAddGuest) {
+      onAddGuest(guestData);
+    }
 
     // Resetando o formulário e fechando o diálogo
     form.reset();

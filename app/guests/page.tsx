@@ -41,6 +41,7 @@ import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 import { EditGuestDialog } from "@/components/guests/edit-guest-dialog";
 import { GuestDetailsDialog } from "@/components/guests/guest-details-dialog";
 import { format } from "date-fns";
+import { useGuestStore, Guest as StoreGuest } from "@/lib/store";
 
 // Interface que define a estrutura de dados de um hóspede
 export interface Guest {
@@ -62,59 +63,56 @@ export interface Guest {
   preferences: string[];
 }
 
-// Serviço de localStorage para persistência de dados
-const GuestService = {
-  // Chave usada no localStorage
-  STORAGE_KEY: "hotel_guests_data",
+// Conversores para traduzir entre os formatos Guest (UI) e StoreGuest
+const convertStoreGuestToUIGuest = (storeGuest: StoreGuest): Guest => {
+  const nameParts = storeGuest.name.split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
 
-  // Obter todos os hóspedes
-  getAll: (): Guest[] => {
-    if (typeof window === "undefined") return initialGuestData;
+  return {
+    id: storeGuest.id,
+    name: storeGuest.name,
+    initials: `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase(),
+    email: storeGuest.email,
+    phone: storeGuest.telefone || "",
+    status:
+      storeGuest.status === "Ativo"
+        ? "Sem estadia"
+        : storeGuest.status === "Pendente"
+        ? "Reservado"
+        : "Hospedado",
+    cpf: storeGuest.cpf,
+    birthDate: storeGuest.dataNascimento
+      ? typeof storeGuest.dataNascimento === "string"
+        ? storeGuest.dataNascimento
+        : format(storeGuest.dataNascimento, "dd/MM/yyyy")
+      : "",
+    genero: storeGuest.genero || "",
+    endereco: storeGuest.descricao || "",
+    nationality: "Brasil", // Valor padrão
+    lastStay: "", // Valor padrão
+    totalStays: 0, // Valor padrão
+    preferences: [], // Valor padrão
+  };
+};
 
-    const stored = localStorage.getItem(GuestService.STORAGE_KEY);
-    if (!stored) {
-      // Inicializa com dados de exemplo na primeira vez
-      localStorage.setItem(
-        GuestService.STORAGE_KEY,
-        JSON.stringify(initialGuestData)
-      );
-      return initialGuestData;
-    }
-
-    return JSON.parse(stored);
-  },
-
-  // Salvar todos os hóspedes
-  saveAll: (guests: Guest[]): void => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(GuestService.STORAGE_KEY, JSON.stringify(guests));
-  },
-
-  // Adicionar um novo hóspede
-  add: (guest: Guest): Guest[] => {
-    const guests = GuestService.getAll();
-    const updatedGuests = [guest, ...guests];
-    GuestService.saveAll(updatedGuests);
-    return updatedGuests;
-  },
-
-  // Atualizar um hóspede existente
-  update: (updatedGuest: Guest): Guest[] => {
-    const guests = GuestService.getAll();
-    const updatedGuests = guests.map((guest) =>
-      guest.id === updatedGuest.id ? updatedGuest : guest
-    );
-    GuestService.saveAll(updatedGuests);
-    return updatedGuests;
-  },
-
-  // Remover um hóspede
-  remove: (id: string): Guest[] => {
-    const guests = GuestService.getAll();
-    const updatedGuests = guests.filter((guest) => guest.id !== id);
-    GuestService.saveAll(updatedGuests);
-    return updatedGuests;
-  },
+const convertUIGuestToStoreGuest = (uiGuest: Guest): StoreGuest => {
+  return {
+    id: uiGuest.id,
+    name: uiGuest.name,
+    email: uiGuest.email,
+    cpf: uiGuest.cpf || "",
+    status:
+      uiGuest.status === "Sem estadia"
+        ? "Ativo"
+        : uiGuest.status === "Reservado"
+        ? "Pendente"
+        : "Inativo",
+    telefone: uiGuest.phone,
+    dataNascimento: uiGuest.birthDate ? new Date(uiGuest.birthDate) : undefined,
+    genero: uiGuest.genero,
+    descricao: uiGuest.endereco,
+  };
 };
 
 // Criar o contexto para compartilhar funções com os componentes filhos
@@ -132,6 +130,12 @@ const GuestsPageContext = createContext<GuestsPageContextType | undefined>(
  * Permite visualizar e gerenciar informações de todos os hóspedes do hotel
  */
 export default function GuestsPage() {
+  // Obter os hóspedes do store global
+  const storeGuests = useGuestStore((state) => state.guests);
+  const addGuestToStore = useGuestStore((state) => state.addGuest);
+  const updateGuestInStore = useGuestStore((state) => state.updateGuest);
+  const deleteGuestFromStore = useGuestStore((state) => state.deleteGuest);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
@@ -142,11 +146,12 @@ export default function GuestsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
 
-  // Carregar dados do localStorage quando o componente montar
+  // Carregar dados do store quando o componente montar e quando o store mudar
   useEffect(() => {
-    const guests = GuestService.getAll();
-    setGuestData(guests);
-  }, []);
+    // Converter os hóspedes do store para o formato usado na UI
+    const uiGuests = storeGuests.map(convertStoreGuestToUIGuest);
+    setGuestData(uiGuests);
+  }, [storeGuests]);
 
   // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -238,9 +243,9 @@ export default function GuestsPage() {
       endereco: data.descricao || "",
     };
 
-    // Adicionando o novo hóspede no serviço
-    const updatedGuests = GuestService.add(newGuest);
-    setGuestData(updatedGuests);
+    // Adicionando o novo hóspede no store global
+    const storeGuest = convertUIGuestToStoreGuest(newGuest);
+    addGuestToStore(storeGuest);
 
     console.log("Novo hóspede adicionado:", newGuest);
   };
@@ -249,15 +254,9 @@ export default function GuestsPage() {
   const handleUpdateGuest = (updatedGuest: Guest) => {
     console.log("Atualizando hóspede:", updatedGuest);
 
-    // Verificar se os campos obrigatórios estão presentes
-    if (!updatedGuest.name || !updatedGuest.email || !updatedGuest.phone) {
-      console.error("Dados inválidos para atualização:", updatedGuest);
-      return;
-    }
-
-    // Atualizar o hóspede no serviço
-    const updatedGuests = GuestService.update(updatedGuest);
-    setGuestData(updatedGuests);
+    // Atualizando o hóspede no store global
+    const storeGuest = convertUIGuestToStoreGuest(updatedGuest);
+    updateGuestInStore(updatedGuest.id, storeGuest);
   };
 
   // Função para abrir o diálogo de edição
@@ -274,10 +273,12 @@ export default function GuestsPage() {
     setShowDetailsDialog(true);
   };
 
-  // Função para excluir um hóspede (não implementada na UI)
+  // Função para excluir um hóspede
   const handleDeleteGuest = (id: string) => {
-    const updatedGuests = GuestService.remove(id);
-    setGuestData(updatedGuests);
+    console.log("Excluindo hóspede:", id);
+
+    // Excluindo o hóspede do store global
+    deleteGuestFromStore(id);
   };
 
   return (
