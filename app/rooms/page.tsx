@@ -32,6 +32,8 @@ import {
 import { AddRoomDialog } from "@/components/rooms/add-room-dialog";
 import { RoomDetailsDialog } from "@/components/rooms/room-details-dialog";
 import { useBookingStore } from "@/lib/store";
+import { roomService } from "@/lib/services/room-service";
+import { Room } from "@/lib/types";
 
 /**
  * Página de gerenciamento de quartos
@@ -41,10 +43,30 @@ export default function RoomsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
-  const [filteredRooms, setFilteredRooms] = useState(roomData);
+  const [roomData, setRoomData] = useState<Room[]>([]);
+  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
   const [showAddRoomDialog, setShowAddRoomDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Buscar dados dos quartos do Supabase
+  useEffect(() => {
+    const fetchRooms = async () => {
+      setIsLoading(true);
+      try {
+        const rooms = await roomService.getAllRooms();
+        setRoomData(rooms);
+        setFilteredRooms(rooms);
+      } catch (error) {
+        console.error("Erro ao buscar quartos:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRooms();
+  }, []);
 
   // Calcular estatísticas dos quartos
   const totalRooms = roomData.length;
@@ -92,12 +114,13 @@ export default function RoomsPage() {
       results = results.filter(
         (room) =>
           room.number.toLowerCase().includes(query) ||
-          room.description.toLowerCase().includes(query)
+          room.description?.toLowerCase().includes(query) ||
+          false
       );
     }
 
     setFilteredRooms(results);
-  }, [searchQuery, statusFilter, currentTab]);
+  }, [searchQuery, statusFilter, currentTab, roomData]);
 
   // Função para limpar filtros
   const clearFilters = () => {
@@ -115,23 +138,39 @@ export default function RoomsPage() {
     setCurrentTab(value);
   };
 
+  // Função para atualizar a lista de quartos
+  const refreshRooms = async () => {
+    setIsLoading(true);
+    try {
+      const rooms = await roomService.getAllRooms();
+      setRoomData(rooms);
+      setFilteredRooms(rooms);
+    } catch (error) {
+      console.error("Erro ao buscar quartos:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Função para adicionar um novo quarto
-  const handleAddRoom = (data: any) => {
+  const handleAddRoom = async (data: any) => {
     // Criando um novo quarto com os dados do formulário
-    const newRoom: Room = {
+    const newRoom = {
       number: data.number,
-      type: data.type === "Solteiro" ? "Solteiro" : "Casal", // Mapeando tipos
-      status: "Disponível", // Por padrão, novos quartos são disponíveis
-      rate: data.type === "Solteiro" ? 100 : 150, // Definindo o preço com base no tipo
+      type: data.type as "Solteiro" | "Casal",
+      status: "Disponível" as const,
+      rate: parseFloat(data.rate),
       description: data.description,
-      image: data.image || "/placeholder.svg?height=200&width=300",
+      image_url: data.image_url || null,
     };
 
-    // Adicionando o novo quarto ao início da lista
-    roomData.unshift(newRoom);
-
-    // Atualizando a lista filtrada
-    setFilteredRooms([...roomData]);
+    try {
+      await roomService.addRoom(newRoom);
+      // Atualizar a lista de quartos
+      refreshRooms();
+    } catch (error) {
+      console.error("Erro ao adicionar quarto:", error);
+    }
   };
 
   // Função para abrir o diálogo de detalhes do quarto
@@ -141,27 +180,15 @@ export default function RoomsPage() {
   };
 
   // Função para excluir um quarto
-  const handleDeleteRoom = (number: string) => {
-    // Filtra o quarto a ser excluído
-    const updatedRooms = roomData.filter((room) => room.number !== number);
-
-    // Atualiza os dados
-    const filteredIndex = roomData.findIndex((room) => room.number === number);
-    if (filteredIndex !== -1) {
-      roomData.splice(filteredIndex, 1);
+  const handleDeleteRoom = async (id: string) => {
+    try {
+      await roomService.deleteRoom(id);
+      // Atualizar a lista de quartos
+      refreshRooms();
+    } catch (error) {
+      console.error("Erro ao excluir quarto:", error);
     }
-
-    // Atualiza a lista filtrada
-    setFilteredRooms([...updatedRooms]);
   };
-
-  // Disponibilizando a função para o componente RoomCard
-  useEffect(() => {
-    window.roomDetailsHandler = handleViewRoomDetails;
-    return () => {
-      window.roomDetailsHandler = undefined;
-    };
-  }, []);
 
   return (
     <div className="flex flex-col gap-4">
@@ -174,7 +201,7 @@ export default function RoomsPage() {
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
           </Button>
-          <Button variant="outline" size="sm" onClick={clearFilters}>
+          <Button variant="outline" size="sm" onClick={refreshRooms}>
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Atualizar
           </Button>
@@ -185,7 +212,7 @@ export default function RoomsPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -312,12 +339,18 @@ export default function RoomsPage() {
                 <TabsTrigger value="casal">Casal</TabsTrigger>
               </TabsList>
 
-              {filteredRooms.length > 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-muted-foreground">
+                    Carregando quartos...
+                  </div>
+                </div>
+              ) : filteredRooms.length > 0 ? (
                 <TabsContent value={currentTab} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredRooms.map((room) => (
                       <RoomCard
-                        key={room.number}
+                        key={room.id}
                         room={room}
                         onViewDetails={handleViewRoomDetails}
                       />
@@ -352,7 +385,11 @@ export default function RoomsPage() {
         open={showDetailsDialog}
         onOpenChange={setShowDetailsDialog}
         room={selectedRoom}
-        onDeleteRoom={handleDeleteRoom}
+        onDeleteRoom={
+          selectedRoom
+            ? handleDeleteRoom.bind(null, selectedRoom.id)
+            : undefined
+        }
       />
     </div>
   );
@@ -386,7 +423,7 @@ function RoomCard({
     <Card className="overflow-hidden">
       <div className="aspect-video relative bg-muted">
         <img
-          src={room.image || "/placeholder.svg?height=200&width=300"}
+          src={room.image_url || "/placeholder.svg?height=200&width=300"}
           alt={`Quarto ${room.number}`}
           className="object-cover w-full h-full"
         />
@@ -411,13 +448,11 @@ function RoomCard({
       </CardHeader>
       <CardContent className="p-4 pt-0">
         <div className="flex justify-between items-center">
-          <div className="text-sm">
-            <span className="font-medium">R${room.rate}</span> / diária
-          </div>
+          <div className="font-medium">R$ {room.rate}/diária</div>
           <div className="flex gap-2">
             <Button
-              variant="outline"
               size="sm"
+              variant="outline"
               onClick={() => onViewDetails(room)}
             >
               Ver Detalhes
@@ -434,92 +469,4 @@ function RoomCard({
       </CardContent>
     </Card>
   );
-}
-
-/**
- * Interface que define a estrutura de dados de um quarto
- */
-interface Room {
-  number: string;
-  type: "Solteiro" | "Casal";
-  status: "Disponível" | "Ocupado" | "Limpeza";
-  rate: number;
-  description: string;
-  image?: string;
-}
-
-/**
- * Dados de exemplo de quartos para exibição na interface
- */
-const roomData: Room[] = [
-  {
-    number: "101",
-    type: "Solteiro",
-    status: "Disponível",
-    rate: 100,
-    description: "Cama de solteiro, vista para cidade, 20m²",
-  },
-  {
-    number: "102",
-    type: "Solteiro",
-    status: "Ocupado",
-    rate: 100,
-    description: "Cama de solteiro, vista para jardim, 20m²",
-  },
-  {
-    number: "201",
-    type: "Casal",
-    status: "Ocupado",
-    rate: 150,
-    description: "Cama de casal, vista para cidade, 30m²",
-  },
-  {
-    number: "202",
-    type: "Casal",
-    status: "Limpeza",
-    rate: 150,
-    description: "Cama de casal, vista para o mar, 30m²",
-  },
-  {
-    number: "301",
-    type: "Casal",
-    status: "Disponível",
-    rate: 150,
-    description: "Cama de casal, vista panorâmica, 35m²",
-  },
-  {
-    number: "302",
-    type: "Solteiro",
-    status: "Disponível",
-    rate: 100,
-    description: "Duas camas de solteiro, varanda, 25m²",
-  },
-  {
-    number: "303",
-    type: "Casal",
-    status: "Ocupado",
-    rate: 150,
-    description: "Cama de casal king size, terraço, 40m²",
-  },
-  {
-    number: "401",
-    type: "Solteiro",
-    status: "Disponível",
-    rate: 100,
-    description: "Duas camas de solteiro, vista para cidade, 25m²",
-  },
-  {
-    number: "402",
-    type: "Casal",
-    status: "Ocupado",
-    rate: 150,
-    description: "Cama king, hidromassagem, 35m²",
-  },
-];
-
-// Hack para permitir que o RoomCard acesse a função handleViewRoomDetails
-declare global {
-  interface Window {
-    roomDetailsHandler?: (room: Room) => void;
-  }
 }
