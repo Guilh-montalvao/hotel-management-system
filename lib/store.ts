@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { Room } from "./types";
 
 interface Room {
   number: string;
@@ -15,17 +16,23 @@ interface BookingStore {
   shouldOpenBookingDialog: boolean;
   setSelectedRoom: (room: Room | null) => void;
   setShouldOpenBookingDialog: (open: boolean) => void;
-  resetBookingState: () => void;
 }
 
-export const useBookingStore = create<BookingStore>((set) => ({
-  selectedRoom: null,
-  shouldOpenBookingDialog: false,
-  setSelectedRoom: (room) => set({ selectedRoom: room }),
-  setShouldOpenBookingDialog: (open) => set({ shouldOpenBookingDialog: open }),
-  resetBookingState: () =>
-    set({ selectedRoom: null, shouldOpenBookingDialog: false }),
-}));
+// Store para gerenciar o estado da reserva entre páginas
+export const useBookingStore = create<BookingStore>()(
+  persist(
+    (set) => ({
+      selectedRoom: null,
+      shouldOpenBookingDialog: false,
+      setSelectedRoom: (room) => set({ selectedRoom: room }),
+      setShouldOpenBookingDialog: (open) =>
+        set({ shouldOpenBookingDialog: open }),
+    }),
+    {
+      name: "booking-store",
+    }
+  )
+);
 
 // Interface para o hóspede
 export interface Guest {
