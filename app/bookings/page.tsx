@@ -40,33 +40,86 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
-import { useBookingStore } from "@/lib/store";
+import { useSupabase } from "@/hooks/useSupabase";
+import { format } from "date-fns";
 
 /**
  * Página de gerenciamento de reservas
  * Permite visualizar, criar e gerenciar todas as reservas do hotel
  */
 export default function BookingsPage() {
+  // Obter o hook do Supabase para bookings
+  const { useBookings } = useSupabase();
+  const {
+    data: dbBookings,
+    isLoading,
+    isError,
+    addBooking: addBookingToDb,
+    updateBooking: updateBookingInDb,
+    deleteBooking: deleteBookingFromDb,
+  } = useBookings();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("upcoming");
-  const [filteredBookings, setFilteredBookings] = useState(bookingData);
+  const [bookingData, setBookingData] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  // Obter dados do store global
-  const { selectedRoom, shouldOpenBookingDialog, resetBookingState } =
-    useBookingStore();
-
-  // Verificar se deve abrir o diálogo de reserva quando a página carrega
+  // Carregar dados do Supabase quando o componente montar
   useEffect(() => {
-    if (shouldOpenBookingDialog) {
-      setShowAddBookingDialog(true);
-      // Resetar o estado para não abrir o diálogo novamente se a página for recarregada
-      resetBookingState();
+    if (dbBookings) {
+      // Converter os bookings do banco para o formato usado na UI
+      const uiBookings = dbBookings.map(convertDbBookingToUIBooking);
+      setBookingData(uiBookings);
     }
-  }, [shouldOpenBookingDialog, resetBookingState]);
+  }, [dbBookings]);
+
+  // Função para converter booking do banco para o formato UI
+  const convertDbBookingToUIBooking = (dbBooking: any): Booking => {
+    return {
+      id: dbBooking.id,
+      guestName: dbBooking.guests?.name || "Hóspede não encontrado",
+      guestEmail: dbBooking.guests?.email || "Email não disponível",
+      guestInitials: getInitials(dbBooking.guests?.name || ""),
+      room: dbBooking.rooms?.number || "Quarto não encontrado",
+      roomType: dbBooking.rooms?.type || "Tipo não disponível",
+      checkIn: format(new Date(dbBooking.check_in), "dd/MM/yyyy"),
+      checkOut: format(new Date(dbBooking.check_out), "dd/MM/yyyy"),
+      status: dbBooking.status || "Pendente",
+      paymentStatus: dbBooking.payment_status || "Pendente",
+      paymentMethod: dbBooking.payment_method || "Não informado",
+    };
+  };
+
+  // Função para converter booking UI para o formato do banco
+  const convertUIBookingToDbBooking = (
+    uiBooking: any,
+    guestId: string,
+    roomId: string
+  ): any => {
+    return {
+      guest_id: guestId,
+      room_id: roomId,
+      check_in: new Date(uiBooking.checkIn).toISOString(),
+      check_out: new Date(uiBooking.checkOut).toISOString(),
+      status: uiBooking.status,
+      payment_status: uiBooking.paymentStatus,
+      payment_method: uiBooking.paymentMethod,
+    };
+  };
+
+  // Função para obter iniciais do nome
+  const getInitials = (name: string): string => {
+    const nameParts = name.split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName =
+      nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+    return `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase();
+  };
 
   // Função para filtrar reservas com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -123,7 +176,7 @@ export default function BookingsPage() {
     }
 
     setFilteredBookings(results);
-  }, [searchQuery, statusFilter, currentTab]);
+  }, [searchQuery, statusFilter, currentTab, bookingData]);
 
   // Função para limpar filtros
   const clearFilters = () => {
@@ -142,27 +195,39 @@ export default function BookingsPage() {
   };
 
   // Função para adicionar uma nova reserva
-  const handleAddBooking = (data: any) => {
-    // Criando uma nova reserva com os dados recebidos
-    const newBooking: Booking = {
-      id: (Date.now() + Math.random()).toString(36), // ID gerado no backend (simulado)
-      guestName: data.guestName,
-      guestEmail: data.guestEmail,
-      guestInitials: data.guestInitials,
-      room: data.room,
-      roomType: data.roomType,
-      checkIn: data.checkIn,
-      checkOut: data.checkOut,
-      status: data.status,
-      paymentStatus: data.paymentStatus,
-      paymentMethod: data.paymentMethod,
-    };
+  const handleAddBooking = async (data: any) => {
+    try {
+      // Converter para formato do banco de dados
+      const dbBooking = {
+        guest_id: data.guestId,
+        room_id: data.roomId,
+        check_in: new Date(data.checkIn).toISOString(),
+        check_out: new Date(data.checkOut).toISOString(),
+        status: data.status || "Confirmada",
+        payment_status: data.paymentStatus || "Pendente",
+        payment_method: data.paymentMethod || "Dinheiro",
+      };
 
-    // Adicionando a nova reserva ao início da lista de dados
-    bookingData.unshift(newBooking);
+      // Adicionar ao banco de dados
+      const newDbBooking = await addBookingToDb(dbBooking);
 
-    // Atualizando a lista filtrada
-    setFilteredBookings([...bookingData]);
+      if (newDbBooking) {
+        // Buscar detalhes completos da reserva (podemos simular isso se necessário)
+        const bookingWithDetails = {
+          ...newDbBooking,
+          guests: { name: data.guestName, email: data.guestEmail },
+          rooms: { number: data.room, type: data.roomType },
+        };
+
+        // Converter para formato UI
+        const newBooking = convertDbBookingToUIBooking(bookingWithDetails);
+
+        // Atualizar o estado local
+        setBookingData((prev) => [newBooking, ...prev]);
+      }
+    } catch (error) {
+      console.error("Erro ao adicionar reserva:", error);
+    }
   };
 
   // Função para visualizar detalhes de uma reserva
