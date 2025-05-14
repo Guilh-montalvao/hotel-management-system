@@ -4,15 +4,13 @@ import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
-  DialogClose,
 } from "@/components/ui/dialog";
 import {
   Form,
@@ -23,8 +21,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -32,33 +28,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { RoomFormData } from "@/lib/types";
 
-// Definição do schema de validação para o formulário
+// Esquema de validação para o formulário
 const formSchema = z.object({
-  number: z.string().min(1, "Número do quarto é obrigatório"),
-  type: z.string().min(1, "Tipo do quarto é obrigatório"),
-  description: z.string().min(5, "Descrição deve ter pelo menos 5 caracteres"),
-  image: z.string().optional(),
+  number: z
+    .string()
+    .min(1, { message: "Número do quarto é obrigatório" })
+    .max(10),
+  type: z.enum(["Solteiro", "Casal"], {
+    required_error: "Tipo de quarto é obrigatório",
+  }),
+  rate: z
+    .string()
+    .min(1, { message: "Valor da diária é obrigatório" })
+    .refine((val) => !isNaN(Number(val)), {
+      message: "Valor da diária deve ser um número",
+    }),
+  description: z.string().optional(),
+  image_url: z.string().optional(),
 });
 
-type FormValues = z.infer<typeof formSchema>;
-
-// Tipos de quarto disponíveis com seus preços correspondentes
-const roomTypes = [
-  { id: "Solteiro", label: "Solteiro", price: 100 },
-  { id: "Casal", label: "Casal", price: 150 },
-];
-
-/**
- * Componente de diálogo para adicionar um novo quarto
- * @param open - Estado de abertura do diálogo
- * @param onOpenChange - Função para alterar o estado de abertura
- * @param onAddRoom - Função chamada quando um quarto é adicionado com sucesso
- */
 interface AddRoomDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddRoom?: (data: FormValues) => void;
+  onAddRoom: (data: RoomFormData) => void;
 }
 
 export function AddRoomDialog({
@@ -68,30 +64,28 @@ export function AddRoomDialog({
 }: AddRoomDialogProps) {
   const [selectedType, setSelectedType] = useState<string | undefined>();
 
-  // Configuração do formulário com validação
-  const form = useForm<FormValues>({
+  // Inicializar react-hook-form com zod resolver
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       number: "",
-      type: "",
       description: "",
-      image: "",
+      rate: "",
+      image_url: "",
     },
   });
 
-  // Função para lidar com a submissão do formulário
-  const onSubmit = (data: FormValues) => {
-    // Aqui você adicionaria a lógica para salvar o quarto
-    onAddRoom?.(data);
-    form.reset();
-    onOpenChange(false);
-  };
+  // Função de envio do formulário
+  const onSubmit = (data: z.infer<typeof formSchema>) => {
+    // Converter valor da diária para número
+    const formattedData = {
+      ...data,
+      rate: parseFloat(data.rate),
+    };
 
-  // Obter o preço com base no tipo selecionado
-  const getPrice = () => {
-    if (!selectedType) return null;
-    const type = roomTypes.find((t) => t.id === selectedType);
-    return type ? `R$${type.price}` : null;
+    onAddRoom(formattedData);
+    form.reset(); // Limpar formulário
+    onOpenChange(false); // Fechar diálogo
   };
 
   return (
@@ -125,13 +119,20 @@ export function AddRoomDialog({
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tipo do Quarto</FormLabel>
+                  <FormLabel>Tipo de Quarto</FormLabel>
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value);
                       setSelectedType(value);
+
+                      // Se o tipo for alterado, atualizar a diária automaticamente
+                      if (value === "Solteiro") {
+                        form.setValue("rate", "100");
+                      } else if (value === "Casal") {
+                        form.setValue("rate", "150");
+                      }
                     }}
-                    value={field.value}
+                    defaultValue={field.value}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -139,11 +140,8 @@ export function AddRoomDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {roomTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.label} - R${type.price}
-                        </SelectItem>
-                      ))}
+                      <SelectItem value="Solteiro">Solteiro</SelectItem>
+                      <SelectItem value="Casal">Casal</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -151,12 +149,19 @@ export function AddRoomDialog({
               )}
             />
 
-            {selectedType && (
-              <div className="text-sm">
-                <span className="font-medium">Preço:</span> {getPrice()} /
-                diária
-              </div>
-            )}
+            <FormField
+              control={form.control}
+              name="rate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Valor da Diária (R$)</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="Ex: 100" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}
@@ -177,15 +182,12 @@ export function AddRoomDialog({
 
             <FormField
               control={form.control}
-              name="image"
+              name="image_url"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>URL da Imagem</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="https://exemplo.com/imagem.jpg"
-                      {...field}
-                    />
+                    <Input placeholder="URL da imagem do quarto" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -193,9 +195,6 @@ export function AddRoomDialog({
             />
 
             <DialogFooter>
-              <DialogClose asChild>
-                <Button variant="outline">Cancelar</Button>
-              </DialogClose>
               <Button type="submit">Adicionar Quarto</Button>
             </DialogFooter>
           </form>
