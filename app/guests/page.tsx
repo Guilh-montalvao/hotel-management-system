@@ -41,7 +41,7 @@ import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 import { EditGuestDialog } from "@/components/guests/edit-guest-dialog";
 import { GuestDetailsDialog } from "@/components/guests/guest-details-dialog";
 import { format } from "date-fns";
-import { useGuestStore, Guest as StoreGuest } from "@/lib/store";
+import { useSupabase } from "@/hooks/useSupabase";
 
 // Interface que define a estrutura de dados de um hóspede
 export interface Guest {
@@ -63,42 +63,59 @@ export interface Guest {
   preferences: string[];
 }
 
-// Conversores para traduzir entre os formatos Guest (UI) e StoreGuest
-const convertStoreGuestToUIGuest = (storeGuest: StoreGuest): Guest => {
-  const nameParts = storeGuest.name.split(" ");
+// Conversores para traduzir entre os formatos Guest (UI) e Supabase Guest
+const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
+  const nameParts = dbGuest.name.split(" ");
   const firstName = nameParts[0] || "";
   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
 
   return {
-    id: storeGuest.id,
-    name: storeGuest.name,
+    id: dbGuest.id,
+    name: dbGuest.name,
     initials: `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase(),
-    email: storeGuest.email,
-    phone: storeGuest.telefone || "",
+    email: dbGuest.email,
+    phone: dbGuest.phone || "",
     status:
-      storeGuest.status === "Ativo"
+      dbGuest.status === "Ativo"
         ? "Sem estadia"
-        : storeGuest.status === "Pendente"
+        : dbGuest.status === "Pendente"
         ? "Reservado"
         : "Hospedado",
-    cpf: storeGuest.cpf,
-    birthDate: storeGuest.dataNascimento
-      ? typeof storeGuest.dataNascimento === "string"
-        ? storeGuest.dataNascimento
-        : format(storeGuest.dataNascimento, "dd/MM/yyyy")
+    cpf: dbGuest.cpf,
+    birthDate: dbGuest.birth_date
+      ? format(new Date(dbGuest.birth_date), "dd/MM/yyyy")
       : "",
-    genero: storeGuest.genero || "",
-    endereco: storeGuest.descricao || "",
-    nationality: "Brasil", // Valor padrão
+    genero: dbGuest.gender || "",
+    endereco: dbGuest.address || "",
+    // Campos mantidos apenas para compatibilidade com a interface
+    nationality: "Brasil", // Valor padrão - não está mais no banco
     lastStay: "", // Valor padrão
     totalStays: 0, // Valor padrão
-    preferences: [], // Valor padrão
+    preferences: [], // Valor padrão - não está mais no banco
   };
 };
 
-const convertUIGuestToStoreGuest = (uiGuest: Guest): StoreGuest => {
+const convertUIGuestToDbGuest = (uiGuest: Guest): any => {
+  // Processando a data - se estiver no formato DD/MM/YYYY, converte para Date
+  let birthDate = null;
+  if (uiGuest.birthDate) {
+    try {
+      // Verifica se está no formato DD/MM/YYYY
+      if (uiGuest.birthDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        // Converter de DD/MM/YYYY para formato válido YYYY-MM-DD
+        const [day, month, year] = uiGuest.birthDate.split("/");
+        birthDate = new Date(`${year}-${month}-${day}`).toISOString();
+      } else {
+        // Tenta converter diretamente se estiver em outro formato
+        birthDate = new Date(uiGuest.birthDate).toISOString();
+      }
+    } catch (error) {
+      console.error("Erro ao converter data de nascimento:", error);
+      birthDate = null;
+    }
+  }
+
   return {
-    id: uiGuest.id,
     name: uiGuest.name,
     email: uiGuest.email,
     cpf: uiGuest.cpf || "",
@@ -108,10 +125,10 @@ const convertUIGuestToStoreGuest = (uiGuest: Guest): StoreGuest => {
         : uiGuest.status === "Reservado"
         ? "Pendente"
         : "Inativo",
-    telefone: uiGuest.phone,
-    dataNascimento: uiGuest.birthDate ? new Date(uiGuest.birthDate) : undefined,
-    genero: uiGuest.genero,
-    descricao: uiGuest.endereco,
+    phone: uiGuest.phone,
+    birth_date: birthDate,
+    gender: uiGuest.genero,
+    address: uiGuest.endereco,
   };
 };
 
@@ -130,11 +147,16 @@ const GuestsPageContext = createContext<GuestsPageContextType | undefined>(
  * Permite visualizar e gerenciar informações de todos os hóspedes do hotel
  */
 export default function GuestsPage() {
-  // Obter os hóspedes do store global
-  const storeGuests = useGuestStore((state) => state.guests);
-  const addGuestToStore = useGuestStore((state) => state.addGuest);
-  const updateGuestInStore = useGuestStore((state) => state.updateGuest);
-  const deleteGuestFromStore = useGuestStore((state) => state.deleteGuest);
+  // Obter os hooks do Supabase para lidar com hóspedes
+  const { useGuests } = useSupabase();
+  const {
+    data: dbGuests,
+    isLoading,
+    isError,
+    addGuest: addGuestToDb,
+    updateGuest: updateGuestInDb,
+    deleteGuest: deleteGuestFromDb,
+  } = useGuests();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -146,12 +168,14 @@ export default function GuestsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
 
-  // Carregar dados do store quando o componente montar e quando o store mudar
+  // Carregar dados do Supabase quando o componente montar
   useEffect(() => {
-    // Converter os hóspedes do store para o formato usado na UI
-    const uiGuests = storeGuests.map(convertStoreGuestToUIGuest);
-    setGuestData(uiGuests);
-  }, [storeGuests]);
+    if (dbGuests) {
+      // Converter os hóspedes do banco para o formato usado na UI
+      const uiGuests = dbGuests.map(convertDbGuestToUIGuest);
+      setGuestData(uiGuests);
+    }
+  }, [dbGuests]);
 
   // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -220,65 +244,79 @@ export default function GuestsPage() {
   };
 
   // Função para adicionar um novo hóspede
-  const handleAddGuest = (data: any) => {
-    // Processando os dados para o formato usado na aplicação
-    const newGuest: Guest = {
-      id: (Date.now() + Math.random()).toString(36), // Gera um ID temporário no backend (simulado)
+  const handleAddGuest = async (data: any) => {
+    // Processando os dados para o formato usado no banco de dados
+    const dbGuest = {
       name: `${data.nome} ${data.sobrenome}`,
-      initials: `${data.nome[0]}${data.sobrenome[0]}`.toUpperCase(),
       email: data.email,
       phone: data.telefone,
-      nationality: "Brasil", // Valor padrão, podemos adicionar no formulário se necessário
-      status: "Sem estadia", // Valor padrão para novos hóspedes
-      lastStay: "", // Novo hóspede não tem estadia anterior
-      totalStays: 0, // Novo hóspede não tem estadias
-      preferences: [],
       cpf: data.cpf || "",
-      birthDate: data.dataNascimento
-        ? typeof data.dataNascimento === "string"
-          ? data.dataNascimento
-          : format(data.dataNascimento, "dd/MM/yyyy")
-        : "",
-      genero: data.genero || "",
-      endereco: data.descricao || "",
+      status: "Ativo", // Valor padrão para novos hóspedes
+      birth_date: data.dataNascimento
+        ? new Date(data.dataNascimento).toISOString()
+        : null,
+      gender: data.genero || "",
+      address: data.descricao || "",
     };
 
-    // Adicionando o novo hóspede no store global
-    const storeGuest = convertUIGuestToStoreGuest(newGuest);
-    addGuestToStore(storeGuest);
+    try {
+      // Adicionar o hóspede ao banco de dados
+      const newDbGuest = await addGuestToDb(dbGuest);
 
-    console.log("Novo hóspede adicionado:", newGuest);
+      // Converter para formato UI e adicionar ao estado local
+      if (newDbGuest) {
+        const newUiGuest = convertDbGuestToUIGuest(newDbGuest);
+        setGuestData((prev) => [newUiGuest, ...prev]);
+      }
+
+      console.log("Novo hóspede adicionado:", newDbGuest);
+    } catch (error) {
+      console.error("Erro ao adicionar hóspede:", error);
+    }
   };
 
   // Função para atualizar um hóspede existente
-  const handleUpdateGuest = (updatedGuest: Guest) => {
-    console.log("Atualizando hóspede:", updatedGuest);
+  const handleUpdateGuest = async (updatedGuest: Guest) => {
+    try {
+      // Converter para o formato do banco de dados
+      const dbGuest = convertUIGuestToDbGuest(updatedGuest);
 
-    // Atualizando o hóspede no store global
-    const storeGuest = convertUIGuestToStoreGuest(updatedGuest);
-    updateGuestInStore(updatedGuest.id, storeGuest);
+      // Atualizar no banco de dados
+      const updatedDbGuest = await updateGuestInDb(updatedGuest.id, dbGuest);
+
+      // Atualizar no estado local se a atualização for bem-sucedida
+      if (updatedDbGuest) {
+        setGuestData((prev) =>
+          prev.map((guest) =>
+            guest.id === updatedGuest.id ? updatedGuest : guest
+          )
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar hóspede:", error);
+    }
   };
 
-  // Função para abrir o diálogo de edição
   const handleEditGuest = (guest: Guest) => {
-    console.log("Editando hóspede:", guest);
     setSelectedGuest(guest);
     setShowEditGuestDialog(true);
   };
 
-  // Função para abrir o diálogo de detalhes
   const handleViewGuestDetails = (guest: Guest) => {
-    console.log("Visualizando detalhes do hóspede:", guest);
     setSelectedGuest(guest);
     setShowDetailsDialog(true);
   };
 
-  // Função para excluir um hóspede
-  const handleDeleteGuest = (id: string) => {
-    console.log("Excluindo hóspede:", id);
+  const handleDeleteGuest = async (id: string) => {
+    try {
+      // Remover do banco de dados
+      await deleteGuestFromDb(id);
 
-    // Excluindo o hóspede do store global
-    deleteGuestFromStore(id);
+      // Remover do estado local
+      setGuestData((prev) => prev.filter((guest) => guest.id !== id));
+    } catch (error) {
+      console.error("Erro ao excluir hóspede:", error);
+    }
   };
 
   return (
@@ -562,7 +600,6 @@ function GuestRow({ guest }: { guest: Guest }) {
     </TableRow>
   );
 }
-
 /**
  * Dados de exemplo para exibição na tabela de hóspedes
  */
