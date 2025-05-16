@@ -420,7 +420,7 @@ function RoomCard({
   };
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden flex flex-col h-full">
       <div className="aspect-video relative bg-muted">
         <img
           src={room.image_url || "/placeholder.svg?height=200&width=300"}
@@ -446,7 +446,7 @@ function RoomCard({
         </div>
         <CardDescription>{room.description}</CardDescription>
       </CardHeader>
-      <CardContent className="p-4 pt-0">
+      <CardContent className="p-4 pt-0 mt-auto">
         <div className="flex justify-between items-center">
           <div className="font-medium">R$ {room.rate}/diária</div>
           <div className="flex gap-2">

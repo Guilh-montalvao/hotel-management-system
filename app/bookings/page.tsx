@@ -42,6 +42,7 @@ import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
 import { useSupabase } from "@/hooks/useSupabase";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 /**
  * Página de gerenciamento de reservas
@@ -197,36 +198,74 @@ export default function BookingsPage() {
   // Função para adicionar uma nova reserva
   const handleAddBooking = async (data: any) => {
     try {
-      // Converter para formato do banco de dados
-      const dbBooking = {
-        guest_id: data.guestId,
-        room_id: data.roomId,
-        check_in: new Date(data.checkIn).toISOString(),
-        check_out: new Date(data.checkOut).toISOString(),
-        status: data.status || "Confirmada",
-        payment_status: data.paymentStatus || "Pendente",
-        payment_method: data.paymentMethod || "Dinheiro",
-      };
+      console.log("Dados recebidos do diálogo:", data);
 
-      // Adicionar ao banco de dados
-      const newDbBooking = await addBookingToDb(dbBooking);
+      // Se recebemos o objeto combinado com originalDbData
+      if (data.originalDbData) {
+        // Usar diretamente os dados já formatados para o banco
+        const dbBooking = data.originalDbData;
 
-      if (newDbBooking) {
-        // Buscar detalhes completos da reserva (podemos simular isso se necessário)
-        const bookingWithDetails = {
-          ...newDbBooking,
-          guests: { name: data.guestName, email: data.guestEmail },
-          rooms: { number: data.room, type: data.roomType },
+        // Adicionar ao banco de dados
+        const newDbBooking = await addBookingToDb(dbBooking);
+
+        if (newDbBooking) {
+          // Buscar detalhes completos da reserva
+          const bookingWithDetails = {
+            ...newDbBooking,
+            guests: {
+              name: data.guestName,
+              email: data.guestEmail,
+            },
+            rooms: {
+              number: data.room,
+              type: data.roomType,
+            },
+          };
+
+          // Converter para formato UI
+          const newBooking = convertDbBookingToUIBooking(bookingWithDetails);
+
+          // Atualizar o estado local
+          setBookingData((prev) => [newBooking, ...prev]);
+
+          toast.success("Reserva adicionada com sucesso!");
+        }
+      } else {
+        // Código anterior para compatibilidade
+        // Converter para formato do banco de dados
+        const dbBooking = {
+          guest_id: data.guestId,
+          room_id: data.roomId,
+          check_in: new Date(data.checkIn).toISOString(),
+          check_out: new Date(data.checkOut).toISOString(),
+          status: data.status || "Confirmada",
+          payment_status: data.paymentStatus || "Pendente",
+          payment_method: data.paymentMethod || "Dinheiro",
         };
 
-        // Converter para formato UI
-        const newBooking = convertDbBookingToUIBooking(bookingWithDetails);
+        // Adicionar ao banco de dados
+        const newDbBooking = await addBookingToDb(dbBooking);
 
-        // Atualizar o estado local
-        setBookingData((prev) => [newBooking, ...prev]);
+        if (newDbBooking) {
+          // Buscar detalhes completos da reserva
+          const bookingWithDetails = {
+            ...newDbBooking,
+            guests: { name: data.guestName, email: data.guestEmail },
+            rooms: { number: data.room, type: data.roomType },
+          };
+
+          // Converter para formato UI
+          const newBooking = convertDbBookingToUIBooking(bookingWithDetails);
+
+          // Atualizar o estado local
+          setBookingData((prev) => [newBooking, ...prev]);
+
+          toast.success("Reserva adicionada com sucesso!");
+        }
       }
     } catch (error) {
       console.error("Erro ao adicionar reserva:", error);
+      toast.error("Erro ao adicionar reserva");
     }
   };
 

@@ -42,6 +42,8 @@ import { EditGuestDialog } from "@/components/guests/edit-guest-dialog";
 import { GuestDetailsDialog } from "@/components/guests/guest-details-dialog";
 import { format } from "date-fns";
 import { useSupabase } from "@/hooks/useSupabase";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 // Interface que define a estrutura de dados de um hóspede
 export interface Guest {
@@ -63,11 +65,32 @@ export interface Guest {
   preferences: string[];
 }
 
-// Conversor para traduzir entre os formatos Guest (UI) e Supabase Guest
+// Conversores para traduzir entre os formatos Guest (UI) e Supabase Guest
 const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
   const nameParts = dbGuest.name.split(" ");
   const firstName = nameParts[0] || "";
   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : "";
+
+  // Solução para o problema de fuso horário com datas
+  let birthDateFormatted = "";
+  if (dbGuest.birth_date) {
+    // Para garantir que a data seja interpretada corretamente sem problemas de fuso horário
+    const dateStr = dbGuest.birth_date;
+    if (typeof dateStr === "string") {
+      // Extrair a data diretamente da string, sem depender de new Date()
+      // Formato esperado do banco: YYYY-MM-DD
+      const parts = dateStr.split("-");
+      if (parts.length >= 3) {
+        // Formatar como DD/MM/YYYY
+        birthDateFormatted = `${parts[2].substring(0, 2)}/${parts[1]}/${
+          parts[0]
+        }`;
+      }
+    } else {
+      // Fallback para o método anterior
+      birthDateFormatted = format(new Date(dbGuest.birth_date), "dd/MM/yyyy");
+    }
+  }
 
   return {
     id: dbGuest.id,
@@ -75,20 +98,9 @@ const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
     initials: `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase(),
     email: dbGuest.email,
     phone: dbGuest.phone || "",
-    status: dbGuest.status, // Usar o status diretamente
+    status: dbGuest.status,
     cpf: dbGuest.cpf,
-    birthDate: dbGuest.birth_date
-      ? (() => {
-          // Assegurar que a data é tratada como UTC para evitar problemas de fuso horário
-          const date = new Date(dbGuest.birth_date);
-          const year = date.getUTCFullYear();
-          const month = date.getUTCMonth() + 1;
-          const day = date.getUTCDate();
-          return `${day.toString().padStart(2, "0")}/${month
-            .toString()
-            .padStart(2, "0")}/${year}`;
-        })()
-      : "",
+    birthDate: birthDateFormatted,
     genero: dbGuest.gender || "",
     endereco: dbGuest.address || "",
     // Campos mantidos apenas para compatibilidade com a interface
@@ -106,12 +118,17 @@ const convertUIGuestToDbGuest = (uiGuest: Guest): any => {
     try {
       // Verifica se está no formato DD/MM/YYYY
       if (uiGuest.birthDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-        // Converter de DD/MM/YYYY para formato válido ISO string com UTC
-        const [day, month, year] = uiGuest.birthDate.split("/").map(Number);
-        birthDate = new Date(Date.UTC(year, month - 1, day)).toISOString();
+        // Converter de DD/MM/YYYY para formato válido YYYY-MM-DD
+        const [day, month, year] = uiGuest.birthDate.split("/");
+        // Usar a string diretamente para evitar problemas de fuso horário
+        birthDate = `${year}-${month}-${day}`;
       } else {
         // Tenta converter diretamente se estiver em outro formato
-        birthDate = new Date(uiGuest.birthDate).toISOString();
+        const date = new Date(uiGuest.birthDate);
+        // Formatar como YYYY-MM-DD para evitar problemas de fuso horário
+        birthDate = `${date.getFullYear()}-${String(
+          date.getMonth() + 1
+        ).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       }
     } catch (error) {
       console.error("Erro ao converter data de nascimento:", error);
@@ -123,7 +140,7 @@ const convertUIGuestToDbGuest = (uiGuest: Guest): any => {
     name: uiGuest.name,
     email: uiGuest.email,
     cpf: uiGuest.cpf || "",
-    status: uiGuest.status, // Usar o status diretamente
+    status: uiGuest.status,
     phone: uiGuest.phone,
     birth_date: birthDate,
     gender: uiGuest.genero,
@@ -170,9 +187,12 @@ export default function GuestsPage() {
   // Carregar dados do Supabase quando o componente montar
   useEffect(() => {
     if (dbGuests) {
+      console.log("Dados recebidos do Supabase:", dbGuests);
       // Converter os hóspedes do banco para o formato usado na UI
       const uiGuests = dbGuests.map(convertDbGuestToUIGuest);
       setGuestData(uiGuests);
+      // Inicializa a lista filtrada com todos os hóspedes
+      setFilteredGuests(uiGuests);
     }
   }, [dbGuests]);
 
@@ -244,13 +264,24 @@ export default function GuestsPage() {
 
   // Função para adicionar um novo hóspede
   const handleAddGuest = async (data: any) => {
-    // Processando os dados para o formato usado no banco de dados
+    // Converter para o formato esperado pelo banco de dados
+    console.log("Dados recebidos do formulário:", data);
+
+    // Verificar se os dados obrigatórios estão presentes
+    if (!data.nome || !data.sobrenome || !data.email) {
+      toast.error(
+        "Faltam dados obrigatórios: nome, sobrenome e email são necessários"
+      );
+      return;
+    }
+
+    // Formatar os dados para o formato esperado pelo Supabase
     const dbGuest = {
       name: `${data.nome} ${data.sobrenome}`,
       email: data.email,
-      phone: data.telefone,
+      phone: data.telefone || "",
       cpf: data.cpf || "",
-      status: "Sem estadia", // Valor padrão para novos hóspedes (novo formato)
+      status: "Sem estadia", // Valor direto conforme esperado pelo banco
       birth_date: data.dataNascimento
         ? new Date(data.dataNascimento).toISOString()
         : null,
@@ -258,19 +289,81 @@ export default function GuestsPage() {
       address: data.descricao || "",
     };
 
+    console.log("Dados formatados para envio ao Supabase:", dbGuest);
+
     try {
       // Adicionar o hóspede ao banco de dados
       const newDbGuest = await addGuestToDb(dbGuest);
+      console.log("Resposta do Supabase:", newDbGuest);
 
       // Converter para formato UI e adicionar ao estado local
       if (newDbGuest) {
         const newUiGuest = convertDbGuestToUIGuest(newDbGuest);
-        setGuestData((prev) => [newUiGuest, ...prev]);
-      }
 
-      console.log("Novo hóspede adicionado:", newDbGuest);
-    } catch (error) {
+        // Atualizar o estado dos hóspedes
+        const updatedGuestData = [newUiGuest, ...guestData];
+        setGuestData(updatedGuestData);
+
+        // Atualizar a lista filtrada também, considerando os filtros atuais
+        if (
+          currentTab === "all" ||
+          (currentTab === "past" && newUiGuest.status === "Sem estadia") ||
+          (currentTab === "recent" && newUiGuest.status === "Reservado") ||
+          (currentTab === "current" && newUiGuest.status === "Hospedado")
+        ) {
+          if (
+            statusFilter === "all" ||
+            (statusFilter === "past" && newUiGuest.status === "Sem estadia") ||
+            (statusFilter === "recent" && newUiGuest.status === "Reservado") ||
+            (statusFilter === "current" && newUiGuest.status === "Hospedado")
+          ) {
+            // Sem filtro de pesquisa ou o hóspede corresponde ao filtro
+            if (
+              searchQuery.trim() === "" ||
+              newUiGuest.name
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) ||
+              newUiGuest.email
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) ||
+              (newUiGuest.phone &&
+                newUiGuest.phone
+                  .toLowerCase()
+                  .includes(searchQuery.toLowerCase())) ||
+              (newUiGuest.cpf &&
+                newUiGuest.cpf
+                  .toLowerCase()
+                  .includes(searchQuery.toLowerCase()))
+            ) {
+              setFilteredGuests((prev) => [newUiGuest, ...prev]);
+            }
+          }
+        }
+
+        toast.success(`Hóspede ${newDbGuest.name} adicionado com sucesso!`);
+      }
+    } catch (error: any) {
       console.error("Erro ao adicionar hóspede:", error);
+      console.error("Dados que tentamos enviar:", dbGuest);
+
+      // Verifica problemas comuns
+      if (error.message?.includes("duplicate")) {
+        toast.error(
+          "Este hóspede já existe no sistema (e-mail ou CPF duplicado)."
+        );
+      } else if (error.message?.includes("violates")) {
+        toast.error("Dados inválidos: violação de regras do banco.");
+      } else if (error.message?.includes("não configurado")) {
+        toast.error(
+          "Problema de conexão com o banco de dados. Verifique se o Supabase está configurado corretamente."
+        );
+      } else {
+        toast.error(
+          `Erro ao adicionar hóspede: ${
+            error.message || "Problema de conexão com o banco"
+          }`
+        );
+      }
     }
   };
 
@@ -318,6 +411,40 @@ export default function GuestsPage() {
     }
   };
 
+  // Função para recarregar dados do banco de dados
+  const reloadData = async () => {
+    try {
+      toast.info("Recarregando dados dos hóspedes...");
+
+      // Buscar novamente os dados do Supabase com cache=false para garantir dados atualizados
+      const { data, error } = await supabase
+        .from("guests")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (data) {
+        console.log("Dados atualizados recebidos do Supabase:", data);
+
+        // Converter os hóspedes do banco para o formato usado na UI
+        const uiGuests = data.map(convertDbGuestToUIGuest);
+        setGuestData(uiGuests);
+
+        // Resetar os filtros
+        setSearchQuery("");
+        setStatusFilter("all");
+        setCurrentTab("all");
+        setFilteredGuests(uiGuests);
+
+        toast.success(`${data.length} hóspedes carregados com sucesso!`);
+      }
+    } catch (error) {
+      console.error("Erro ao recarregar dados:", error);
+      toast.error("Erro ao recarregar os dados dos hóspedes");
+    }
+  };
+
   return (
     <GuestsPageContext.Provider
       value={{ handleEditGuest, handleViewGuestDetails }}
@@ -335,6 +462,10 @@ export default function GuestsPage() {
             <Button variant="outline" size="sm" onClick={clearFilters}>
               <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Limpar Filtros
+            </Button>
+            <Button variant="outline" size="sm" onClick={reloadData}>
+              <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              Recarregar Dados
             </Button>
             <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
               <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />

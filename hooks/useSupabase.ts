@@ -165,13 +165,39 @@ export const useSupabase = () => {
     }, []);
 
     const addGuest = async (guestData: any) => {
+      console.log("Iniciando adição de hóspede com dados:", guestData);
+
       try {
+        // Verificar conexão com o Supabase
+        console.log("Verificando conexão com o Supabase...");
+        const { data: testData, error: testError } = await supabase
+          .from("guests")
+          .select("count");
+
+        if (testError) {
+          console.error("Erro na conexão com o Supabase:", testError);
+          throw new Error(
+            `Falha na conexão com o banco de dados: ${testError.message}`
+          );
+        }
+
+        console.log("Conexão com o Supabase OK, enviando dados...");
+
+        // Validar dados obrigatórios
+        if (!guestData.name || !guestData.email) {
+          throw new Error(
+            "Dados obrigatórios faltando: nome e email são necessários"
+          );
+        }
+
         const { data, error } = await supabase
           .from("guests")
           .insert([guestData])
           .select();
 
         if (error) throw error;
+
+        console.log("Hóspede adicionado com sucesso:", data[0]);
 
         setState((prev) => ({
           ...prev,
@@ -182,7 +208,37 @@ export const useSupabase = () => {
         return data[0];
       } catch (error: any) {
         console.error("Erro ao adicionar hóspede:", error);
-        toast.error("Erro ao adicionar hóspede");
+        console.error("Detalhes adicionais do erro:", {
+          mensagem: error.message || "Sem mensagem",
+          código: error.code || "Sem código",
+          detalhe: error.details || "Sem detalhes",
+          dica: error.hint || "Sem dica",
+          status: error.status || "Sem status",
+
+          credenciaisPresentes:
+            !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
+            !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+          objeto_completo: JSON.stringify(error, null, 2),
+        });
+
+        // Mostrar mensagem mais específica
+        let mensagemErro = "Erro desconhecido";
+
+        if (error.message?.includes("duplicate")) {
+          mensagemErro = "Este hóspede já existe (email ou CPF duplicado)";
+        } else if (error.message?.includes("violates")) {
+          mensagemErro = "Dados inválidos: violação de regras do banco";
+        } else if (error.message?.includes("conexão")) {
+          mensagemErro = "Problema de conexão com o banco de dados";
+        } else if (error.code === "PGRST301") {
+          mensagemErro = "Banco de dados não configurado corretamente";
+        } else if (error.status >= 400 && error.status < 500) {
+          mensagemErro = "Erro de cliente (requisição inválida)";
+        } else if (error.status >= 500) {
+          mensagemErro = "Erro de servidor (problema interno do Supabase)";
+        }
+
+        toast.error(`Erro ao adicionar hóspede: ${mensagemErro}`);
         throw error;
       }
     };
@@ -423,5 +479,3 @@ export const useSupabase = () => {
     useBookings,
   };
 };
-
-export default useSupabase;

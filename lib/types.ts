@@ -119,8 +119,6 @@ export interface StayPreference {
   created_at: string;
 }
 
-
-
 // Tipos para as respostas do Supabase
 export type SupabaseQueryResponse<T> = {
   data: T | null;
