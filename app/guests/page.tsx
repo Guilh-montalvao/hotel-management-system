@@ -63,7 +63,7 @@ export interface Guest {
   preferences: string[];
 }
 
-// Conversores para traduzir entre os formatos Guest (UI) e Supabase Guest
+// Conversor para traduzir entre os formatos Guest (UI) e Supabase Guest
 const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
   const nameParts = dbGuest.name.split(" ");
   const firstName = nameParts[0] || "";
@@ -75,15 +75,19 @@ const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
     initials: `${firstName[0] || ""}${lastName[0] || ""}`.toUpperCase(),
     email: dbGuest.email,
     phone: dbGuest.phone || "",
-    status:
-      dbGuest.status === "Ativo"
-        ? "Sem estadia"
-        : dbGuest.status === "Pendente"
-        ? "Reservado"
-        : "Hospedado",
+    status: dbGuest.status, // Usar o status diretamente
     cpf: dbGuest.cpf,
     birthDate: dbGuest.birth_date
-      ? format(new Date(dbGuest.birth_date), "dd/MM/yyyy")
+      ? (() => {
+          // Assegurar que a data é tratada como UTC para evitar problemas de fuso horário
+          const date = new Date(dbGuest.birth_date);
+          const year = date.getUTCFullYear();
+          const month = date.getUTCMonth() + 1;
+          const day = date.getUTCDate();
+          return `${day.toString().padStart(2, "0")}/${month
+            .toString()
+            .padStart(2, "0")}/${year}`;
+        })()
       : "",
     genero: dbGuest.gender || "",
     endereco: dbGuest.address || "",
@@ -102,9 +106,9 @@ const convertUIGuestToDbGuest = (uiGuest: Guest): any => {
     try {
       // Verifica se está no formato DD/MM/YYYY
       if (uiGuest.birthDate.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
-        // Converter de DD/MM/YYYY para formato válido YYYY-MM-DD
-        const [day, month, year] = uiGuest.birthDate.split("/");
-        birthDate = new Date(`${year}-${month}-${day}`).toISOString();
+        // Converter de DD/MM/YYYY para formato válido ISO string com UTC
+        const [day, month, year] = uiGuest.birthDate.split("/").map(Number);
+        birthDate = new Date(Date.UTC(year, month - 1, day)).toISOString();
       } else {
         // Tenta converter diretamente se estiver em outro formato
         birthDate = new Date(uiGuest.birthDate).toISOString();
@@ -119,12 +123,7 @@ const convertUIGuestToDbGuest = (uiGuest: Guest): any => {
     name: uiGuest.name,
     email: uiGuest.email,
     cpf: uiGuest.cpf || "",
-    status:
-      uiGuest.status === "Sem estadia"
-        ? "Ativo"
-        : uiGuest.status === "Reservado"
-        ? "Pendente"
-        : "Inativo",
+    status: uiGuest.status, // Usar o status diretamente
     phone: uiGuest.phone,
     birth_date: birthDate,
     gender: uiGuest.genero,
@@ -251,7 +250,7 @@ export default function GuestsPage() {
       email: data.email,
       phone: data.telefone,
       cpf: data.cpf || "",
-      status: "Ativo", // Valor padrão para novos hóspedes
+      status: "Sem estadia", // Valor padrão para novos hóspedes (novo formato)
       birth_date: data.dataNascimento
         ? new Date(data.dataNascimento).toISOString()
         : null,
