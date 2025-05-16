@@ -12,8 +12,10 @@ import {
   ChevronsUpDown,
   PlusIcon,
 } from "lucide-react";
-import { useBookingStore, useGuestStore } from "@/lib/store";
+import { useBookingStore } from "@/lib/store";
+import { useSupabase } from "@/hooks/useSupabase";
 import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
+import { GuestUI, guestToUI } from "@/lib/types";
 
 import {
   Dialog,
@@ -116,9 +118,12 @@ export function AddBookingDialog({
   // Obter o quarto selecionado do store global
   const { selectedRoom } = useBookingStore();
 
-  // Obter os hóspedes do store global
-  const guests = useGuestStore((state) => state.guests);
-  const addGuest = useGuestStore((state) => state.addGuest);
+  // Obter os hóspedes do banco de dados Supabase
+  const { useGuests } = useSupabase();
+  const { data: dbGuests, isLoading, addGuest: addGuestToDb } = useGuests();
+
+  // Estado para armazenar os hóspedes convertidos para o formato UI
+  const [guests, setGuests] = useState<GuestUI[]>([]);
 
   // Estado para controlar o diálogo de adicionar hóspede
   const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
@@ -136,6 +141,14 @@ export function AddBookingDialog({
 
   // Estado para controlar a abertura do popover de combobox
   const [guestComboboxOpen, setGuestComboboxOpen] = useState(false);
+
+  // Efeito para converter os dados de hóspedes do banco para o formato UI
+  useEffect(() => {
+    if (dbGuests) {
+      const uiGuests = dbGuests.map(guestToUI);
+      setGuests(uiGuests);
+    }
+  }, [dbGuests]);
 
   // Efeito para preencher o campo de quarto quando selectedRoom mudar
   useEffect(() => {
@@ -181,25 +194,35 @@ export function AddBookingDialog({
   };
 
   // Função para adicionar um novo hóspede
-  const handleAddGuest = (data: any) => {
-    // Converte os dados do formulário para o formato esperado pelo store
-    const guestData = {
+  const handleAddGuest = async (data: any) => {
+    // Processando os dados para o formato usado no banco de dados
+    const dbGuest = {
       name: `${data.nome} ${data.sobrenome}`,
       email: data.email,
-      cpf: data.cpf,
-      status: "Ativo", // Status padrão para novo hóspede
-      telefone: data.telefone,
-      dataNascimento: data.dataNascimento,
-      genero: data.genero,
-      descricao: data.descricao,
-      nome: data.nome,
-      sobrenome: data.sobrenome,
+      phone: data.telefone,
+      cpf: data.cpf || "",
+      status: "Sem estadia", // Valor padrão para novos hóspedes
+      birth_date: data.dataNascimento
+        ? new Date(data.dataNascimento).toISOString()
+        : null,
+      gender: data.genero || "",
+      address: data.descricao || "",
     };
 
-    // Adiciona o hóspede ao store global
-    addGuest(guestData);
+    try {
+      // Adicionar o hóspede ao banco de dados
+      const newDbGuest = await addGuestToDb(dbGuest);
 
-    console.log("Novo hóspede adicionado:", guestData);
+      // Converter para formato UI e adicionar ao estado local
+      if (newDbGuest) {
+        const newUiGuest = guestToUI(newDbGuest);
+        setGuests((prev) => [newUiGuest, ...prev]);
+      }
+
+      console.log("Novo hóspede adicionado:", newDbGuest);
+    } catch (error) {
+      console.error("Erro ao adicionar hóspede:", error);
+    }
 
     // Fecha o diálogo de adicionar hóspede
     setShowAddGuestDialog(false);
@@ -271,13 +294,17 @@ export function AddBookingDialog({
                             </div>
                           </div>
                           <CommandEmpty>
-                            Nenhum hóspede encontrado.
+                            {isLoading
+                              ? "Carregando hóspedes..."
+                              : "Nenhum hóspede encontrado."}
                           </CommandEmpty>
                           <CommandGroup>
                             {guests.map((guest) => (
                               <CommandItem
                                 key={guest.id}
-                                value={`${guest.id} ${guest.name} ${guest.cpf}`}
+                                value={`${guest.id} ${guest.name} ${
+                                  guest.cpf || ""
+                                }`}
                                 onSelect={(value) => {
                                   const guestId = value.split(" ")[0];
                                   form.setValue("guestId", guestId);
@@ -296,27 +323,23 @@ export function AddBookingDialog({
                                       )}
                                     />
                                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-900 mr-2 text-sm font-medium">
-                                      {guest.name
-                                        .split(" ")
-                                        .map((name) => name[0])
-                                        .slice(0, 2)
-                                        .join("")}
+                                      {guest.initials}
                                     </div>
                                     <div className="flex-1">
                                       <div className="font-medium">
                                         {guest.name}
                                       </div>
                                       <div className="text-xs text-muted-foreground">
-                                        {guest.cpf}
+                                        {guest.cpf || ""}
                                       </div>
                                     </div>
                                   </div>
                                   <div
                                     className={cn(
                                       "text-xs font-medium px-2 py-1 rounded-full",
-                                      guest.status === "Ativo"
+                                      guest.status === "Sem estadia"
                                         ? "bg-green-100 text-green-800"
-                                        : guest.status === "Pendente"
+                                        : guest.status === "Reservado"
                                         ? "bg-yellow-100 text-yellow-800"
                                         : "bg-red-100 text-red-800"
                                     )}
