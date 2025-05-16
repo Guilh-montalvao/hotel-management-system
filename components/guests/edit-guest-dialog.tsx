@@ -128,14 +128,10 @@ export function EditGuestDialog({
       let dataNascimento = new Date();
       try {
         if (guest.birthDate) {
-          const parts = guest.birthDate.split("/");
-          if (parts.length === 3) {
-            dataNascimento = new Date(
-              parseInt(parts[2], 10),
-              parseInt(parts[1], 10) - 1,
-              parseInt(parts[0], 10)
-            );
-          }
+          // Converter a data no formato DD/MM/YYYY para objeto Date
+          const [day, month, year] = guest.birthDate.split("/").map(Number);
+          // Criar data usando UTC para evitar problemas de fuso horário
+          dataNascimento = new Date(Date.UTC(year, month - 1, day));
         }
       } catch (error) {
         console.error("Erro ao converter data:", error);
@@ -195,6 +191,15 @@ export function EditGuestDialog({
   const onSubmit = (data: FormValues) => {
     console.log("Dados do formulário de edição:", data);
 
+    // Formatando a data usando UTC para evitar problemas de fuso horário
+    const formattedDate = (() => {
+      const date = data.dataNascimento;
+      const day = date.getUTCDate().toString().padStart(2, "0");
+      const month = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+      const year = date.getUTCFullYear();
+      return `${day}/${month}/${year}`;
+    })();
+
     // Criando um objeto de hóspede com os dados atualizados
     const updatedGuestData = {
       ...guest,
@@ -202,7 +207,7 @@ export function EditGuestDialog({
       cpf: data.cpf,
       email: data.email,
       phone: data.telefone,
-      birthDate: format(data.dataNascimento, "dd/MM/yyyy"),
+      birthDate: formattedDate,
       genero: data.genero,
       endereco: data.descricao,
       status: data.status || "Sem estadia",
