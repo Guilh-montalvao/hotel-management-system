@@ -41,6 +41,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
 import { useSupabase } from "@/hooks/useSupabase";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -49,35 +50,151 @@ import { toast } from "sonner";
  * Permite visualizar, criar e gerenciar todas as reservas do hotel
  */
 export default function BookingsPage() {
-  // Obter o hook do Supabase para bookings
-  const { useBookings } = useSupabase();
-  const {
-    data: dbBookings,
-    isLoading,
-    isError,
-    addBooking: addBookingToDb,
-    updateBooking: updateBookingInDb,
-    deleteBooking: deleteBookingFromDb,
-  } = useBookings();
-
+  // Usar o supabase diretamente para evitar problemas de tipo
+  const [bookingData, setBookingData] = useState<Booking[]>([]);
+  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("upcoming");
-  const [bookingData, setBookingData] = useState<Booking[]>([]);
-  const [filteredBookings, setFilteredBookings] = useState<Booking[]>([]);
-  const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
 
-  // Carregar dados do Supabase quando o componente montar
-  useEffect(() => {
-    if (dbBookings) {
-      // Converter os bookings do banco para o formato usado na UI
-      const uiBookings = dbBookings.map(convertDbBookingToUIBooking);
-      setBookingData(uiBookings);
+  // Estatísticas das reservas
+  const [bookingStats, setBookingStats] = useState({
+    totalBookings: 0,
+    checkInsToday: 0,
+    checkOutsToday: 0,
+    cancelledBookings: 0,
+    checkInsDiff: 0,
+    checkOutsDiff: 0,
+  });
+
+  // Função para adicionar uma reserva ao banco de dados
+  const addBookingToDb = async (booking: any) => {
+    try {
+      // Verificar se todos os campos obrigatórios estão presentes
+      if (
+        !booking.guest_id ||
+        !booking.room_id ||
+        !booking.check_in ||
+        !booking.check_out
+      ) {
+        console.error("Campos obrigatórios faltando:", booking);
+        toast.error("Erro: campos obrigatórios faltando na reserva");
+        return null;
+      }
+
+      // Certificar-se de que o status e payment_status estão definidos
+      const bookingData = {
+        ...booking,
+        status: booking.status || "Reservado",
+        payment_status: booking.payment_status || "Pendente",
+        updated_at: new Date().toISOString(),
+      };
+
+      // Fazer a inserção no Supabase
+      const { data, error } = await supabase
+        .from("bookings")
+        .insert([bookingData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Erro ao adicionar reserva:", error);
+        toast.error(
+          `Erro ao adicionar reserva: ${error.message || "Erro desconhecido"}`
+        );
+        return null;
+      }
+
+      // Também atualizar o status do hóspede
+      const { error: guestError } = await supabase
+        .from("guests")
+        .update({ status: "Reservado", updated_at: new Date().toISOString() })
+        .eq("id", booking.guest_id);
+
+      if (guestError) {
+        console.error("Erro ao atualizar status do hóspede:", guestError);
+        // Continuar mesmo com erro, já que a reserva foi criada
+      }
+
+      return data;
+    } catch (exception) {
+      console.error("Exceção ao adicionar reserva:", exception);
+      toast.error("Erro inesperado ao adicionar reserva");
+      return null;
     }
-  }, [dbBookings]);
+  };
+
+  // Função para carregar dados do Supabase
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        // Buscar todas as reservas com dados dos hóspedes e quartos
+        const { data: bookingsData, error } = await supabase
+          .from("bookings")
+          .select("*, guests(*), rooms(*)")
+          .order("check_in", { ascending: true });
+
+        if (error) {
+          console.error("Erro ao buscar reservas:", error);
+          return;
+        }
+
+        // Converter dados do banco para o formato UI
+        const bookings = bookingsData.map(convertDbBookingToUIBooking);
+        setBookingData(bookings);
+
+        // Calcular estatísticas
+        const today = new Date().toISOString().split("T")[0];
+        const yesterday = new Date(Date.now() - 86400000)
+          .toISOString()
+          .split("T")[0];
+
+        // Total de reservas ativas
+        const activeBookings = bookingsData.filter((b: any) =>
+          ["Reservado", "Check-in Feito"].includes(b.status)
+        ).length;
+
+        // Check-ins hoje
+        const todayCheckIns = bookingsData.filter(
+          (b: any) => b.check_in === today
+        ).length;
+        const yesterdayCheckIns = bookingsData.filter(
+          (b: any) => b.check_in === yesterday
+        ).length;
+        const checkInsDiff = todayCheckIns - yesterdayCheckIns;
+
+        // Check-outs hoje
+        const todayCheckOuts = bookingsData.filter(
+          (b: any) => b.check_out === today
+        ).length;
+        const yesterdayCheckOuts = bookingsData.filter(
+          (b: any) => b.check_out === yesterday
+        ).length;
+        const checkOutsDiff = todayCheckOuts - yesterdayCheckOuts;
+
+        // Reservas canceladas
+        const cancelledBookings = bookingsData.filter(
+          (b: any) => b.status === "Cancelada"
+        ).length;
+
+        setBookingStats({
+          totalBookings: activeBookings,
+          checkInsToday: todayCheckIns,
+          checkOutsToday: todayCheckOuts,
+          cancelledBookings,
+          checkInsDiff,
+          checkOutsDiff,
+        });
+      } catch (error) {
+        console.error("Erro ao buscar dados:", error);
+      }
+    };
+
+    fetchBookings();
+  }, []);
 
   // Função para converter booking do banco para o formato UI
   const convertDbBookingToUIBooking = (dbBooking: any): Booking => {
@@ -129,10 +246,7 @@ export default function BookingsPage() {
     // Filtrar por tipo de status (aba)
     if (currentTab !== "all") {
       if (currentTab === "upcoming") {
-        results = results.filter(
-          (booking) =>
-            booking.status === "Confirmada" || booking.status === "Pendente"
-        );
+        results = results.filter((booking) => booking.status === "Reservado");
       } else if (currentTab === "current") {
         results = results.filter(
           (booking) => booking.status === "Check-in Feito"
@@ -149,10 +263,9 @@ export default function BookingsPage() {
     // Filtrar por status selecionado
     if (statusFilter !== "all") {
       const statusMap = {
-        confirmed: "Confirmada",
+        confirmed: "Reservado",
         "checked-in": "Check-in Feito",
         "checked-out": "Check-out Feito",
-        pending: "Pendente",
         cancelled: "Cancelada",
       };
 
@@ -198,12 +311,30 @@ export default function BookingsPage() {
   // Função para adicionar uma nova reserva
   const handleAddBooking = async (data: any) => {
     try {
-      console.log("Dados recebidos do diálogo:", data);
+      console.log("Dados completos recebidos do diálogo:", data);
 
       // Se recebemos o objeto combinado com originalDbData
       if (data.originalDbData) {
         // Usar diretamente os dados já formatados para o banco
         const dbBooking = data.originalDbData;
+        console.log("Dados formatados para o banco:", dbBooking);
+
+        // Verificar campos críticos
+        if (
+          !dbBooking.guest_id ||
+          !dbBooking.room_id ||
+          !dbBooking.check_in ||
+          !dbBooking.check_out
+        ) {
+          console.error("Campos obrigatórios faltando:", {
+            guest_id: dbBooking.guest_id,
+            room_id: dbBooking.room_id,
+            check_in: dbBooking.check_in,
+            check_out: dbBooking.check_out,
+          });
+          toast.error("Erro: Campos obrigatórios faltando na reserva");
+          return;
+        }
 
         // Adicionar ao banco de dados
         const newDbBooking = await addBookingToDb(dbBooking);
@@ -229,6 +360,8 @@ export default function BookingsPage() {
           setBookingData((prev) => [newBooking, ...prev]);
 
           toast.success("Reserva adicionada com sucesso!");
+        } else {
+          toast.error("Falha ao adicionar reserva ao banco de dados");
         }
       } else {
         // Código anterior para compatibilidade
@@ -236,12 +369,24 @@ export default function BookingsPage() {
         const dbBooking = {
           guest_id: data.guestId,
           room_id: data.roomId,
-          check_in: new Date(data.checkIn).toISOString(),
-          check_out: new Date(data.checkOut).toISOString(),
-          status: data.status || "Confirmada",
+          check_in: new Date(data.checkIn).toISOString().split("T")[0],
+          check_out: new Date(data.checkOut).toISOString().split("T")[0],
+          status: data.status || "Reservado",
           payment_status: data.paymentStatus || "Pendente",
           payment_method: data.paymentMethod || "Dinheiro",
         };
+
+        console.log("Dados antigos formatados para o banco:", dbBooking);
+
+        // Verificar campos críticos
+        if (!dbBooking.guest_id || !dbBooking.room_id) {
+          console.error("Campos obrigatórios faltando no formato antigo:", {
+            guest_id: dbBooking.guest_id,
+            room_id: dbBooking.room_id,
+          });
+          toast.error("Erro: ID do hóspede ou do quarto faltando");
+          return;
+        }
 
         // Adicionar ao banco de dados
         const newDbBooking = await addBookingToDb(dbBooking);
@@ -261,11 +406,17 @@ export default function BookingsPage() {
           setBookingData((prev) => [newBooking, ...prev]);
 
           toast.success("Reserva adicionada com sucesso!");
+        } else {
+          toast.error("Falha ao adicionar reserva ao banco de dados");
         }
       }
     } catch (error) {
       console.error("Erro ao adicionar reserva:", error);
-      toast.error("Erro ao adicionar reserva");
+      toast.error(
+        `Erro ao adicionar reserva: ${
+          error instanceof Error ? error.message : "Erro desconhecido"
+        }`
+      );
     }
   };
 
@@ -309,7 +460,9 @@ export default function BookingsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">248</div>
+            <div className="text-2xl font-bold">
+              {bookingStats.totalBookings}
+            </div>
             <p className="text-xs text-muted-foreground">Reservas ativas</p>
           </CardContent>
         </Card>
@@ -324,9 +477,12 @@ export default function BookingsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
+            <div className="text-2xl font-bold">
+              {bookingStats.checkInsToday}
+            </div>
             <p className="text-xs text-muted-foreground">
-              +2 em relação a ontem
+              {bookingStats.checkInsDiff > 0 ? "+" : ""}
+              {bookingStats.checkInsDiff} em relação a ontem
             </p>
           </CardContent>
         </Card>
@@ -341,27 +497,30 @@ export default function BookingsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8</div>
+            <div className="text-2xl font-bold">
+              {bookingStats.checkOutsToday}
+            </div>
             <p className="text-xs text-muted-foreground">
-              -3 em relação a ontem
+              {bookingStats.checkOutsDiff > 0 ? "+" : ""}
+              {bookingStats.checkOutsDiff} em relação a ontem
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Confirmações Pendentes
+              Reservas Canceladas
             </CardTitle>
-            <ClockIcon
+            <XIcon
               className="h-4 w-4 text-muted-foreground"
               aria-hidden="true"
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">5</div>
-            <p className="text-xs text-muted-foreground">
-              Aguardando confirmação
-            </p>
+            <div className="text-2xl font-bold">
+              {bookingStats.cancelledBookings}
+            </div>
+            <p className="text-xs text-muted-foreground">Reservas canceladas</p>
           </CardContent>
         </Card>
       </div>
@@ -405,10 +564,9 @@ export default function BookingsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
-                  <SelectItem value="confirmed">Confirmada</SelectItem>
+                  <SelectItem value="confirmed">Reservado</SelectItem>
                   <SelectItem value="checked-in">Check-in Feito</SelectItem>
                   <SelectItem value="checked-out">Check-out Feito</SelectItem>
-                  <SelectItem value="pending">Pendente</SelectItem>
                   <SelectItem value="cancelled">Cancelada</SelectItem>
                 </SelectContent>
               </Select>
@@ -525,14 +683,12 @@ function BookingRow({
         <Badge
           variant="outline"
           className={
-            booking.status === "Confirmada"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
-              : booking.status === "Check-in Feito"
+            booking.status === "Reservado"
               ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800"
+              : booking.status === "Check-in Feito"
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
               : booking.status === "Check-out Feito"
               ? "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
-              : booking.status === "Pendente"
-              ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"
               : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800"
           }
         >
@@ -571,7 +727,7 @@ interface Booking {
   checkIn: string;
   checkOut: string;
   status:
-    | "Confirmada"
+    | "Reservado"
     | "Check-in Feito"
     | "Check-out Feito"
     | "Pendente"
@@ -671,7 +827,7 @@ const bookingData: Booking[] = [
     roomType: "Padrão",
     checkIn: "22/06/2023",
     checkOut: "24/06/2023",
-    status: "Confirmada",
+    status: "Reservado",
     paymentStatus: "Depósito",
     paymentMethod: "Transferência",
   },
@@ -684,7 +840,7 @@ const bookingData: Booking[] = [
     roomType: "Luxo",
     checkIn: "23/06/2023",
     checkOut: "30/06/2023",
-    status: "Confirmada",
+    status: "Reservado",
     paymentStatus: "Não Pago",
     paymentMethod: "Pendente",
   },
@@ -697,7 +853,7 @@ const bookingData: Booking[] = [
     roomType: "Suíte",
     checkIn: "25/06/2023",
     checkOut: "02/07/2023",
-    status: "Confirmada",
+    status: "Reservado",
     paymentStatus: "Pago",
     paymentMethod: "PIX",
   },
