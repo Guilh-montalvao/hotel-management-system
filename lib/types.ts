@@ -69,10 +69,12 @@ export interface Guest {
   email: string;
   phone: string | null;
   cpf: string | null;
-  status: "Ativo" | "Pendente" | "Inativo";
+  status: "Sem estadia" | "Reservado" | "Hospedado";
   birth_date: string | null;
   gender: string | null;
   address: string | null;
+  nationality?: string;
+  preferences?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -83,12 +85,7 @@ export interface Booking {
   room_id: string;
   check_in: string;
   check_out: string;
-  status:
-    | "Confirmada"
-    | "Check-in Feito"
-    | "Check-out Feito"
-    | "Pendente"
-    | "Cancelada";
+  status: "Reservado" | "Check-in Feito" | "Check-out Feito" | "Cancelada";
   payment_status: string;
   payment_method: string | null;
   total_amount: number | null;
@@ -151,12 +148,7 @@ export interface BookingFormData {
   room_id: string;
   check_in: string;
   check_out: string;
-  status:
-    | "Confirmada"
-    | "Check-in Feito"
-    | "Check-out Feito"
-    | "Pendente"
-    | "Cancelada";
+  status: "Reservado" | "Check-in Feito" | "Check-out Feito" | "Cancelada";
   payment_status: string;
   payment_method?: string;
   total_amount?: number;
@@ -216,12 +208,7 @@ export interface BookingUI {
   roomType: string;
   checkIn: string;
   checkOut: string;
-  status:
-    | "Confirmada"
-    | "Check-in Feito"
-    | "Check-out Feito"
-    | "Pendente"
-    | "Cancelada";
+  status: "Reservado" | "Check-in Feito" | "Check-out Feito" | "Cancelada";
   paymentStatus: string;
   paymentMethod: string;
 }
@@ -250,12 +237,7 @@ export const guestToUI = (guest: Guest): GuestUI => {
     initials,
     email: guest.email,
     phone: guest.phone || "",
-    status:
-      guest.status === "Ativo"
-        ? "Sem estadia"
-        : guest.status === "Pendente"
-        ? "Reservado"
-        : "Hospedado",
+    status: guest.status,
     birthDate: guest.birth_date || undefined,
     cpf: guest.cpf || undefined,
     genero: guest.gender || undefined,
