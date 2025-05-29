@@ -79,6 +79,12 @@ export const bookingService = {
     // Atualiza o status do quarto para ocupado
     await roomService.updateRoomStatus(booking.room_id, "Ocupado");
 
+    // Atualiza o status do hóspede para "Reservado"
+    await supabase
+      .from("guests")
+      .update({ status: "Reservado", updated_at: new Date().toISOString() })
+      .eq("id", booking.guest_id);
+
     return data;
   },
 
@@ -117,6 +123,12 @@ export const bookingService = {
       const booking = await this.getBookingById(id);
       if (booking) {
         await roomService.updateRoomStatus(booking.room_id, "Ocupado");
+
+        // Atualiza o status do hóspede para "Hospedado"
+        await supabase
+          .from("guests")
+          .update({ status: "Hospedado", updated_at: new Date().toISOString() })
+          .eq("id", booking.guest_id);
       }
     }
 
@@ -127,7 +139,19 @@ export const bookingService = {
    * Realizar check-out de uma reserva
    */
   async checkOut(id: string): Promise<boolean> {
-    return await this.updateBookingStatus(id, "Check-out Feito");
-    // A atualização do status do quarto para limpeza é feita no updateBookingStatus
+    const booking = await this.getBookingById(id);
+    const result = await this.updateBookingStatus(id, "Check-out Feito");
+
+    if (result && booking) {
+      // A atualização do status do quarto para limpeza é feita no updateBookingStatus
+
+      // Atualiza o status do hóspede para "Sem estadia"
+      await supabase
+        .from("guests")
+        .update({ status: "Sem estadia", updated_at: new Date().toISOString() })
+        .eq("id", booking.guest_id);
+    }
+
+    return result;
   },
 };
