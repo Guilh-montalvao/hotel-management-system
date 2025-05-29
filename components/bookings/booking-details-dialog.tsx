@@ -51,14 +51,12 @@ export function BookingDetailsDialog({
   // Função para obter a cor do status
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "Confirmada":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800";
-      case "Check-in Feito":
+      case "Reservado":
         return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800";
+      case "Check-in Feito":
+        return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800";
       case "Check-out Feito":
         return "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800";
-      case "Pendente":
-        return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800";
       case "Cancelada":
         return "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800";
       default:
@@ -205,7 +203,7 @@ export function BookingDetailsDialog({
           </Button>
           <div className="flex space-x-2">
             {/* Botões condicionais baseados no status */}
-            {booking.status === "Confirmada" && (
+            {booking.status === "Reservado" && (
               <Button variant="default">
                 <CheckIcon className="mr-2 h-4 w-4" />
                 Fazer Check-in

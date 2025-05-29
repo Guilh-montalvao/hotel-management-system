@@ -177,9 +177,15 @@ export function AddBookingDialog({
         .map((room) => ({
           value: room.number,
           label: `${room.number} - ${room.type}`,
+          id: room.id, // Garantir que o ID está explicitamente mapeado
+          number: room.number,
+          type: room.type,
+          rate: room.rate,
+          status: room.status,
           ...room, // mantém os dados originais para referência
         }));
 
+      console.log("Quartos formatados:", formattedRooms);
       setAvailableRooms(formattedRooms);
     }
   }, [dbRooms]);
@@ -442,6 +448,9 @@ export function AddBookingDialog({
       return;
     }
 
+    // Debug para ajudar a entender a estrutura do objeto
+    console.log("Dados do quarto selecionado:", selectedRoomData);
+
     // Formatar datas
     const checkInDate = format(data.checkIn, "yyyy-MM-dd");
     const checkOutDate = format(data.checkOut, "yyyy-MM-dd");
@@ -449,14 +458,18 @@ export function AddBookingDialog({
     // Criar objeto para o banco de dados
     const dbBookingData = {
       guest_id: selectedGuest.id,
-      room_id: selectedRoomData.number || data.room, // Usando o número do quarto como identificador
-      check_in_date: checkInDate,
-      check_out_date: checkOutDate,
+      // Garantir que estamos usando o ID do quarto, não o número
+      room_id: selectedRoomData.id || "",
+      check_in: checkInDate,
+      check_out: checkOutDate,
       payment_method: data.paymentMethod,
       // Valores padrão
-      status: "Confirmada",
-      total_price: selectedRoomData.rate || 0, // Agora usa a diária do quarto selecionado
+      status: "Reservado",
+      payment_status: "Pendente",
+      total_amount: selectedRoomData.rate || 0,
     };
+
+    console.log("Dados da reserva a serem enviados:", dbBookingData);
 
     // Criando um objeto de reserva para exibição no frontend
     const uiBookingData = {
