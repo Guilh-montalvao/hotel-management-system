@@ -11,6 +11,7 @@ import {
   CheckIcon,
   ChevronsUpDown,
   PlusIcon,
+  InfoIcon,
 } from "lucide-react";
 import { useBookingStore, useGuestStore } from "@/lib/store";
 import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
@@ -56,6 +57,7 @@ import {
   CommandInput,
   CommandItem,
 } from "@/components/ui/command";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 // Definição do schema de validação para o formulário
@@ -150,6 +152,27 @@ export function AddBookingDialog({
   // Estado para controlar a abertura do popover de combobox para hóspedes
   const [guestComboboxOpen, setGuestComboboxOpen] = useState(false);
 
+  // Estado para armazenar o hóspede selecionado com detalhes completos
+  const [selectedGuestDetails, setSelectedGuestDetails] = useState<any>(null);
+
+  // Estado para armazenar o quarto selecionado com detalhes completos
+  const [selectedRoomDetails, setSelectedRoomDetails] = useState<any>(null);
+
+  // Estado para calcular o valor total da reserva
+  const [totalValue, setTotalValue] = useState<number>(0);
+
+  // Estado para calcular o período da estadia em dias
+  const [stayPeriod, setStayPeriod] = useState<number>(0);
+
+  // Estado para controlar se deve mostrar o resumo da reserva
+  const [showSummary, setShowSummary] = useState<boolean>(true);
+
+  // Estado para o status de pagamento
+  const [paymentStatus, setPaymentStatus] = useState<string>("Pendente");
+
+  // Estado para observações da reserva
+  const [reservationNotes, setReservationNotes] = useState<string>("");
+
   // Efeito para identificar se estamos vindo da página de quartos quando o diálogo abre
   useEffect(() => {
     if (open && selectedRoom) {
@@ -219,14 +242,53 @@ export function AddBookingDialog({
     }
   }, [open, form, setSelectedRoom]);
 
-  // Efeito para preencher o e-mail do hóspede quando selecionado
+  // Efeito para preencher os detalhes do hóspede quando selecionado
   useEffect(() => {
     const guestId = form.watch("guestId");
     if (guestId && guests.length > 0) {
       const selectedGuest = guests.find((guest) => guest.id === guestId);
-      // Armazenamos o email internamente para uso posterior, mas não exibimos no formulário
+      if (selectedGuest) {
+        setSelectedGuestDetails(selectedGuest);
+      }
+    } else {
+      setSelectedGuestDetails(null);
     }
-  }, [form, guests, form.watch("guestId")]);
+  }, [form.watch("guestId"), guests]);
+
+  // Efeito para preencher os detalhes do quarto quando selecionado
+  useEffect(() => {
+    const roomNumber = form.watch("room");
+    if (roomNumber && availableRooms.length > 0) {
+      const selectedRoom = availableRooms.find(
+        (room) => room.value === roomNumber
+      );
+      if (selectedRoom) {
+        setSelectedRoomDetails(selectedRoom);
+      }
+    } else {
+      setSelectedRoomDetails(null);
+    }
+  }, [form.watch("room"), availableRooms]);
+
+  // Efeito para calcular valor total e período quando as datas ou quarto mudam
+  useEffect(() => {
+    const checkIn = form.watch("checkIn");
+    const checkOut = form.watch("checkOut");
+
+    if (checkIn && checkOut) {
+      const diffTime = Math.abs(checkOut.getTime() - checkIn.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      setStayPeriod(diffDays);
+
+      if (selectedRoomDetails) {
+        const dailyRate = selectedRoomDetails.rate || 0;
+        setTotalValue(dailyRate * diffDays);
+      }
+    } else {
+      setStayPeriod(0);
+      setTotalValue(0);
+    }
+  }, [form.watch("checkIn"), form.watch("checkOut"), selectedRoomDetails]);
 
   // Função para renderizar a lista de hóspedes
   const renderGuestsList = () => {
@@ -559,10 +621,20 @@ export function AddBookingDialog({
     }
   };
 
+  // Função para verificar se deve mostrar o resumo da reserva
+  const shouldShowResumeSection = () => {
+    const hasGuest = !!form.watch("guestId");
+    const hasRoom = !!form.watch("room");
+    const hasCheckIn = !!form.watch("checkIn");
+    const hasCheckOut = !!form.watch("checkOut");
+
+    return hasGuest && hasRoom && hasCheckIn && hasCheckOut;
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Reserva</DialogTitle>
             <DialogDescription>
@@ -636,6 +708,34 @@ export function AddBookingDialog({
                 )}
               />
 
+              {/* Mostrar informações adicionais do hóspede quando selecionado */}
+              {selectedGuestDetails && (
+                <div className="grid grid-cols-3 gap-4 p-3 bg-muted/50 rounded-md">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Email:
+                    </div>
+                    <div className="text-sm">{selectedGuestDetails.email}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Telefone:
+                    </div>
+                    <div className="text-sm">
+                      {selectedGuestDetails.phone || "(11) 98765-4321"}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Status:
+                    </div>
+                    <div className="text-sm">
+                      {selectedGuestDetails.status || "Sem estadia"}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Campo de seleção de quarto - Agora com combobox e pesquisa */}
               <FormField
                 control={form.control}
@@ -686,86 +786,135 @@ export function AddBookingDialog({
                 )}
               />
 
-              {/* Campo de data de check-in */}
-              <FormField
-                control={form.control}
-                name="checkIn"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Data de Check-in</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className="w-full pl-3 text-left font-normal"
-                          >
-                            {field.value ? (
-                              format(field.value, "dd/MM/yyyy", {
-                                locale: ptBR,
-                              })
-                            ) : (
-                              <span>Selecione uma data</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                          locale={ptBR}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Mostrar informações adicionais do quarto quando selecionado */}
+              {selectedRoomDetails && (
+                <div className="grid grid-cols-3 gap-4 p-3 bg-muted/50 rounded-md">
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Tipo:
+                    </div>
+                    <div className="text-sm">
+                      {selectedRoomDetails.type || "Casal"}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Diária:
+                    </div>
+                    <div className="text-sm">
+                      R$ {selectedRoomDetails.rate?.toFixed(2) || "150,00"}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Status:
+                    </div>
+                    <div className="text-sm">
+                      {selectedRoomDetails.status || "Disponível"}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Campo de data de check-out */}
-              <FormField
-                control={form.control}
-                name="checkOut"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Data de Check-out</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            className="w-full pl-3 text-left font-normal"
-                          >
-                            {field.value ? (
-                              format(field.value, "dd/MM/yyyy", {
-                                locale: ptBR,
-                              })
-                            ) : (
-                              <span>Selecione uma data</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                          locale={ptBR}
-                          fromDate={form.getValues("checkIn") || new Date()}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Campos de check-in e check-out em grid */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Campo de data de check-in */}
+                <FormField
+                  control={form.control}
+                  name="checkIn"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Check-in</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className="w-full pl-3 text-left font-normal"
+                            >
+                              {field.value ? (
+                                format(field.value, "dd/MM/yyyy", {
+                                  locale: ptBR,
+                                })
+                              ) : (
+                                <span>Selecione uma data</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                            locale={ptBR}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Campo de data de check-out */}
+                <FormField
+                  control={form.control}
+                  name="checkOut"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Check-out</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className="w-full pl-3 text-left font-normal"
+                            >
+                              {field.value ? (
+                                format(field.value, "dd/MM/yyyy", {
+                                  locale: ptBR,
+                                })
+                              ) : (
+                                <span>Selecione uma data</span>
+                              )}
+                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={field.onChange}
+                            initialFocus
+                            locale={ptBR}
+                            fromDate={form.getValues("checkIn") || new Date()}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Mostrar o período de estadia quando as datas estão selecionadas */}
+              {form.watch("checkIn") && form.watch("checkOut") && (
+                <div className="flex justify-between items-center p-3 bg-muted/50 rounded-md">
+                  <div className="text-sm">
+                    <span className="font-medium">Período da estadia:</span>{" "}
+                    {stayPeriod} diárias
+                  </div>
+                  {selectedRoomDetails && (
+                    <div className="text-sm">
+                      <span className="font-medium">Valor total estimado:</span>{" "}
+                      R$ {totalValue.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Campo de método de pagamento */}
               <FormField
@@ -792,6 +941,123 @@ export function AddBookingDialog({
                   </FormItem>
                 )}
               />
+
+              {/* Campo de status de pagamento */}
+              <div className="space-y-2">
+                <FormLabel>Status do Pagamento</FormLabel>
+                <Select value={paymentStatus} onValueChange={setPaymentStatus}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status do pagamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pendente">Pendente</SelectItem>
+                    <SelectItem value="Pago">Pago</SelectItem>
+                    <SelectItem value="Parcial">Parcial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Campo para observações opcionais */}
+              <div className="space-y-2">
+                <FormLabel>Observações (opcional)</FormLabel>
+                <Textarea
+                  placeholder="Adicione observações sobre a reserva"
+                  className="resize-none"
+                  value={reservationNotes}
+                  onChange={(e) => setReservationNotes(e.target.value)}
+                />
+              </div>
+
+              {/* Resumo da reserva - mostrado quando todos os campos essenciais estiverem preenchidos */}
+              {shouldShowResumeSection() && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-base font-medium">Resumo da Reserva</h3>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowSummary(!showSummary)}
+                    >
+                      {showSummary ? "Ocultar" : "Mostrar"}
+                    </Button>
+                  </div>
+
+                  {showSummary && (
+                    <div className="bg-muted p-4 rounded-md space-y-3">
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium">Hóspede:</div>
+                        <div className="text-sm">
+                          {selectedGuestDetails?.name}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium">Quarto:</div>
+                        <div className="text-sm">
+                          {selectedRoomDetails
+                            ? `${selectedRoomDetails.number} - ${
+                                selectedRoomDetails.type || "Casal"
+                              }`
+                            : ""}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col">
+                          <div className="text-sm font-medium">Check-in:</div>
+                          <div className="text-sm">
+                            {form.watch("checkIn")
+                              ? format(form.watch("checkIn"), "dd/MM/yyyy")
+                              : ""}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col">
+                          <div className="text-sm font-medium">Check-out:</div>
+                          <div className="text-sm">
+                            {form.watch("checkOut")
+                              ? format(form.watch("checkOut"), "dd/MM/yyyy")
+                              : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium">
+                          Método de pagamento:
+                        </div>
+                        <div className="text-sm">
+                          {form.watch("paymentMethod") || "-"}
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium">
+                          Status de pagamento:
+                        </div>
+                        <div className="text-sm">{paymentStatus}</div>
+                      </div>
+
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium">Valor total:</div>
+                        <div className="text-sm">
+                          R$ {totalValue.toFixed(2)} ({stayPeriod} diárias)
+                        </div>
+                      </div>
+
+                      {reservationNotes && (
+                        <div className="flex flex-col">
+                          <div className="text-sm font-medium">
+                            Observações:
+                          </div>
+                          <div className="text-sm">{reservationNotes}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <DialogFooter>
                 <DialogClose asChild>

@@ -81,6 +81,8 @@ export function AddRoomDialog({
     const formattedData = {
       ...data,
       rate: parseFloat(data.rate),
+      description: data.description || "", // Garantir que description é sempre uma string
+      image_url: data.image_url || "", // Garantir que image_url é sempre uma string
     };
 
     onAddRoom(formattedData);
