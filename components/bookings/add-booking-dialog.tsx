@@ -634,7 +634,7 @@ export function AddBookingDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent size="md">
           <DialogHeader>
             <DialogTitle>Nova Reserva</DialogTitle>
             <DialogDescription>
