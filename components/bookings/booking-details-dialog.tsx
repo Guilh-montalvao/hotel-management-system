@@ -66,7 +66,7 @@ export function BookingDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[650px]">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle className="text-xl">Detalhes da Reserva</DialogTitle>
           <DialogDescription>

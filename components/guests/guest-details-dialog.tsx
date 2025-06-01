@@ -91,7 +91,7 @@ export function GuestDetailsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[650px]">
+        <DialogContent size="md">
           <DialogHeader>
             <div className="flex items-center gap-2">
               <Avatar className="h-8 w-8">

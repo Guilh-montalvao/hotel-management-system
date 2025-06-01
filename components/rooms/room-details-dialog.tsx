@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Componente de Diálogo de Detalhes do Quarto
+ *
+ * Este componente exibe informações detalhadas sobre um quarto específico,
+ * incluindo suas características, status atual e histórico de hospedagem.
+ * Permite também gerenciar ações como exclusão do quarto e visualização
+ * de histórico de reservas.
+ */
+
 import { useState } from "react";
 import {
   Dialog,
@@ -41,34 +50,55 @@ import {
 import { Room } from "@/lib/types";
 import { roomService } from "@/lib/services/room-service";
 
-// Interface para dados de estadia
+/**
+ * Interface para representar os dados de uma estadia/hospedagem
+ * Contém informações como identificação, dados do hóspede, datas e status de pagamento
+ */
 interface StayRecord {
-  id: string;
-  guestName: string;
-  checkIn: string;
-  checkOut: string;
-  status: string;
-  paymentStatus: string;
-  totalAmount: number;
+  id: string; // Identificador único da estadia
+  guestName: string; // Nome do hóspede
+  checkIn: string; // Data de entrada (formato DD/MM/YYYY)
+  checkOut: string; // Data de saída (formato DD/MM/YYYY)
+  status: string; // Status da estadia (Ativo, Concluído, Cancelado)
+  paymentStatus: string; // Status do pagamento (Pago, Parcial, Pendente)
+  totalAmount: number; // Valor total da estadia em reais
 }
 
+/**
+ * Interface que define as propriedades do componente de diálogo de detalhes do quarto
+ */
 interface RoomDetailsDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  room: Room | null;
-  onDeleteRoom?: (id: string) => void;
+  open: boolean; // Controla se o diálogo está aberto
+  onOpenChange: (open: boolean) => void; // Função chamada quando o estado de abertura muda
+  room: Room | null; // Objeto com dados do quarto selecionado
+  onDeleteRoom?: (id: string) => void; // Função opcional para exclusão do quarto
 }
 
+/**
+ * Componente RoomDetailsDialog
+ *
+ * Exibe um diálogo modal com informações detalhadas de um quarto e seu histórico
+ * de hospedagem. Permite navegar entre abas de detalhes e histórico, além de
+ * realizar ações como exclusão do quarto.
+ *
+ * @param props - Propriedades do componente conforme RoomDetailsDialogProps
+ */
 export function RoomDetailsDialog({
   open,
   onOpenChange,
   room,
   onDeleteRoom,
 }: RoomDetailsDialogProps) {
+  // Estado para controlar qual aba está ativa (detalhes ou histórico)
   const [activeTab, setActiveTab] = useState("details");
+
+  // Estado para controlar a visibilidade do diálogo de confirmação de exclusão
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
-  // Dados fictícios para o histórico de hospedagem
+  /**
+   * Dados fictícios para demonstração do histórico de hospedagem
+   * Em uma implementação real, esses dados viriam do banco de dados
+   */
   const stayRecords: StayRecord[] = [
     {
       id: "RS0012345",
@@ -117,7 +147,14 @@ export function RoomDetailsDialog({
     },
   ];
 
-  // Função para atualizar o status do quarto
+  /**
+   * Função para atualizar o status do quarto
+   *
+   * Chama o serviço de quarto para alterar o status e fecha o diálogo após a operação,
+   * forçando uma atualização dos dados quando o diálogo for reaberto
+   *
+   * @param status - Novo status do quarto (Disponível, Ocupado ou Limpeza)
+   */
   const handleStatusChange = async (
     status: "Disponível" | "Ocupado" | "Limpeza"
   ) => {
@@ -134,7 +171,12 @@ export function RoomDetailsDialog({
     }
   };
 
-  // Função para lidar com a exclusão do quarto
+  /**
+   * Função para lidar com a exclusão do quarto
+   *
+   * Executa a função de callback para exclusão, fecha o diálogo de confirmação
+   * e também o diálogo principal de detalhes
+   */
   const handleDeleteRoom = () => {
     if (onDeleteRoom && room) {
       onDeleteRoom(room.id);
@@ -143,15 +185,18 @@ export function RoomDetailsDialog({
     onOpenChange(false);
   };
 
+  // Se não houver quarto selecionado, não renderiza nada
   if (!room) return null;
 
   return (
     <>
+      {/* Diálogo principal com detalhes do quarto */}
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+        <DialogContent size="md">
           <DialogHeader>
             <div className="flex justify-between items-center">
               <DialogTitle>Quarto {room.number}</DialogTitle>
+              {/* Badge para exibir o status do quarto com cores contextuais */}
               <Badge
                 className={`${
                   room.status === "Disponível"
@@ -169,13 +214,16 @@ export function RoomDetailsDialog({
             </DialogDescription>
           </DialogHeader>
 
+          {/* Sistema de abas para organizar o conteúdo */}
           <Tabs defaultValue="details" onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="details">Detalhes do Quarto</TabsTrigger>
               <TabsTrigger value="history">Histórico de Hospedagem</TabsTrigger>
             </TabsList>
 
+            {/* Conteúdo da aba de detalhes */}
             <TabsContent value="details" className="space-y-4 mt-4">
+              {/* Imagem do quarto */}
               <div className="aspect-video w-full overflow-hidden rounded-lg">
                 <img
                   src={
@@ -186,12 +234,14 @@ export function RoomDetailsDialog({
                 />
               </div>
 
+              {/* Card com detalhes do quarto */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Detalhes do Quarto</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Coluna de informações básicas */}
                     <div className="space-y-3">
                       <h3 className="text-base font-medium">
                         Informações Básicas
@@ -225,6 +275,7 @@ export function RoomDetailsDialog({
                       </div>
                     </div>
 
+                    {/* Coluna de informações de limpeza */}
                     <div className="space-y-3">
                       <h3 className="text-base font-medium">Limpeza</h3>
                       <div className="space-y-2">
@@ -242,6 +293,7 @@ export function RoomDetailsDialog({
                     </div>
                   </div>
 
+                  {/* Seção de descrição */}
                   <div>
                     <h3 className="text-base font-medium mb-2">Descrição</h3>
                     <p className="text-muted-foreground">
@@ -252,6 +304,7 @@ export function RoomDetailsDialog({
               </Card>
             </TabsContent>
 
+            {/* Conteúdo da aba de histórico de hospedagem */}
             <TabsContent value="history" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
@@ -262,15 +315,18 @@ export function RoomDetailsDialog({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
+                    {/* Mapeia os registros de hospedagem para exibição */}
                     {stayRecords.map((record) => (
                       <div key={record.id} className="border rounded-lg p-4">
                         <div className="flex justify-between">
+                          {/* Informações do hóspede */}
                           <div className="flex items-center gap-2">
                             <User className="h-5 w-5 text-muted-foreground" />
                             <span className="font-medium">
                               {record.guestName}
                             </span>
                           </div>
+                          {/* Badge de status com cores contextuais */}
                           <Badge
                             variant="outline"
                             className={
@@ -284,6 +340,7 @@ export function RoomDetailsDialog({
                             {record.status}
                           </Badge>
                         </div>
+                        {/* Grid com detalhes da hospedagem */}
                         <div className="grid grid-cols-2 gap-2 mt-3">
                           <div className="flex items-center gap-2">
                             <CalendarDays className="h-4 w-4 text-muted-foreground" />
@@ -320,7 +377,9 @@ export function RoomDetailsDialog({
             </TabsContent>
           </Tabs>
 
+          {/* Rodapé do diálogo com botões de ação */}
           <DialogFooter className="flex items-center justify-between">
+            {/* Botão para excluir o quarto - abre diálogo de confirmação */}
             <Button
               variant="destructive"
               onClick={() => setShowDeleteConfirmation(true)}
@@ -329,6 +388,7 @@ export function RoomDetailsDialog({
               <Trash2Icon className="h-4 w-4" />
               Excluir quarto
             </Button>
+            {/* Botão para fechar o diálogo */}
             <DialogClose asChild>
               <Button variant="outline">Fechar</Button>
             </DialogClose>
@@ -336,6 +396,7 @@ export function RoomDetailsDialog({
         </DialogContent>
       </Dialog>
 
+      {/* Diálogo de confirmação para exclusão do quarto */}
       <AlertDialog
         open={showDeleteConfirmation}
         onOpenChange={setShowDeleteConfirmation}
@@ -347,6 +408,7 @@ export function RoomDetailsDialog({
               Confirmar exclusão
             </AlertDialogTitle>
             <AlertDialogDescription>
+              {/* Mensagem de aviso diferente dependendo se há histórico de hospedagem */}
               {stayRecords.length > 0 ? (
                 <>
                   Tem certeza que deseja excluir o quarto {room.number}?{" "}

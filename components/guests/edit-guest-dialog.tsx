@@ -221,7 +221,7 @@ export function EditGuestDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Editar Hóspede</DialogTitle>
           <DialogDescription>

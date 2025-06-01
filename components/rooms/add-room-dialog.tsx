@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * Componente de Diálogo para Adicionar Novo Quarto
+ *
+ * Este componente apresenta um diálogo modal com um formulário para adicionar
+ * um novo quarto ao sistema. Utiliza react-hook-form para gerenciamento do formulário
+ * e zod para validação dos dados.
+ */
+
 import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -32,7 +40,16 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RoomFormData } from "@/lib/types";
 
-// Esquema de validação para o formulário
+/**
+ * Esquema de validação Zod para o formulário de quarto
+ *
+ * Define as regras de validação para cada campo:
+ * - number: Número do quarto (obrigatório, máx. 10 caracteres)
+ * - type: Tipo do quarto (Solteiro ou Casal, obrigatório)
+ * - rate: Valor da diária (obrigatório, deve ser um número)
+ * - description: Descrição do quarto (opcional)
+ * - image_url: URL da imagem do quarto (opcional)
+ */
 const formSchema = z.object({
   number: z
     .string()
@@ -51,20 +68,33 @@ const formSchema = z.object({
   image_url: z.string().optional(),
 });
 
+/**
+ * Interface de propriedades do componente AddRoomDialog
+ */
 interface AddRoomDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onAddRoom: (data: RoomFormData) => void;
+  open: boolean; // Controla se o diálogo está aberto
+  onOpenChange: (open: boolean) => void; // Função chamada quando o estado de abertura muda
+  onAddRoom: (data: RoomFormData) => void; // Função chamada para adicionar o quarto
 }
 
+/**
+ * Componente de diálogo para adicionar um novo quarto
+ *
+ * @param props - Propriedades do componente
+ * @returns Componente React
+ */
 export function AddRoomDialog({
   open,
   onOpenChange,
   onAddRoom,
 }: AddRoomDialogProps) {
+  // Estado para armazenar o tipo de quarto selecionado
   const [selectedType, setSelectedType] = useState<string | undefined>();
 
-  // Inicializar react-hook-form com zod resolver
+  /**
+   * Inicialização do formulário com react-hook-form
+   * Configura a validação com zodResolver e define valores iniciais
+   */
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -75,9 +105,13 @@ export function AddRoomDialog({
     },
   });
 
-  // Função de envio do formulário
+  /**
+   * Função executada ao enviar o formulário
+   *
+   * @param data - Dados validados do formulário
+   */
   const onSubmit = (data: z.infer<typeof formSchema>) => {
-    // Converter valor da diária para número
+    // Converter valor da diária para número e garantir que os campos opcionais sejam strings vazias em vez de undefined
     const formattedData = {
       ...data,
       rate: parseFloat(data.rate),
@@ -85,6 +119,7 @@ export function AddRoomDialog({
       image_url: data.image_url || "", // Garantir que image_url é sempre uma string
     };
 
+    // Chamar a função para adicionar o quarto ao banco de dados
     onAddRoom(formattedData);
     form.reset(); // Limpar formulário
     onOpenChange(false); // Fechar diálogo
@@ -92,7 +127,7 @@ export function AddRoomDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Adicionar Novo Quarto</DialogTitle>
           <DialogDescription>
@@ -102,6 +137,7 @@ export function AddRoomDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Campo: Número do Quarto */}
             <FormField
               control={form.control}
               name="number"
@@ -116,6 +152,7 @@ export function AddRoomDialog({
               )}
             />
 
+            {/* Campo: Tipo de Quarto */}
             <FormField
               control={form.control}
               name="type"
@@ -151,6 +188,7 @@ export function AddRoomDialog({
               )}
             />
 
+            {/* Campo: Valor da Diária */}
             <FormField
               control={form.control}
               name="rate"
@@ -165,6 +203,7 @@ export function AddRoomDialog({
               )}
             />
 
+            {/* Campo: Descrição */}
             <FormField
               control={form.control}
               name="description"
@@ -182,6 +221,7 @@ export function AddRoomDialog({
               )}
             />
 
+            {/* Campo: URL da Imagem */}
             <FormField
               control={form.control}
               name="image_url"
@@ -196,6 +236,7 @@ export function AddRoomDialog({
               )}
             />
 
+            {/* Botões de ação do formulário */}
             <DialogFooter>
               <Button type="submit">Adicionar Quarto</Button>
             </DialogFooter>
