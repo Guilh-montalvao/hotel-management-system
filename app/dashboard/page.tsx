@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * Página do Painel de Controle (Dashboard)
+ *
+ * Este componente é a página principal do sistema de gerenciamento de hotel.
+ * Exibe métricas importantes, gráficos de desempenho, ações rápidas e
+ * listagens de reservas recentes. Serve como hub central para navegar
+ * para outras funcionalidades do sistema.
+ */
+
 import { useState } from "react";
 import {
   Card,
@@ -32,10 +41,16 @@ import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
  * Exibe informações resumidas e estatísticas importantes para gerenciamento do hotel
  */
 export default function DashboardPage() {
+  // Estados para controlar a visibilidade dos diálogos de adição
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
 
-  // Função para adicionar uma nova reserva
+  /**
+   * Função para processar a adição de uma nova reserva
+   *
+   * @param data - Dados da nova reserva a ser adicionada
+   * Em um ambiente de produção, esta função chamaria uma API para persistir os dados
+   */
   const handleAddBooking = (data: any) => {
     // Aqui poderíamos implementar a lógica para salvar a reserva
     console.log("Nova reserva criada:", data);
@@ -43,7 +58,12 @@ export default function DashboardPage() {
     // ou atualizaríamos o estado local
   };
 
-  // Função para adicionar um novo hóspede
+  /**
+   * Função para processar a adição de um novo hóspede
+   *
+   * @param data - Dados do novo hóspede a ser cadastrado
+   * Em um ambiente de produção, esta função chamaria uma API para persistir os dados
+   */
   const handleAddGuest = (data: any) => {
     // Aqui poderíamos implementar a lógica para salvar o hóspede
     console.log("Novo hóspede cadastrado:", data);
@@ -53,6 +73,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Cabeçalho com título e botões de ação */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">
           Painel de Controle
@@ -71,6 +92,7 @@ export default function DashboardPage() {
 
       {/* Cards de resumo com métricas principais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {/* Card de Receita Total */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
@@ -90,6 +112,8 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* Card de Taxa de Ocupação */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -111,6 +135,8 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* Card de Quartos Disponíveis */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -128,6 +154,8 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        {/* Card de Novas Reservas */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -151,15 +179,19 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Abas para diferentes visualizações do painel */}
+      {/* Sistema de abas para diferentes visualizações do painel */}
       <Tabs defaultValue="visao-geral" className="space-y-4">
         <TabsList>
           <TabsTrigger value="visao-geral">Visão Geral</TabsTrigger>
           <TabsTrigger value="analises">Análises</TabsTrigger>
           <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
         </TabsList>
+
+        {/* Conteúdo da aba Visão Geral - principal do dashboard */}
         <TabsContent value="visao-geral" className="space-y-4">
+          {/* Seção de gráficos - ocupação e receita */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+            {/* Gráfico de Taxa de Ocupação */}
             <Card className="col-span-4">
               <CardHeader>
                 <CardTitle>Taxa de Ocupação</CardTitle>
@@ -171,6 +203,8 @@ export default function DashboardPage() {
                 <OccupancyChart />
               </CardContent>
             </Card>
+
+            {/* Gráfico de Receita */}
             <Card className="col-span-3">
               <CardHeader>
                 <CardTitle>Receita</CardTitle>
@@ -184,7 +218,9 @@ export default function DashboardPage() {
             </Card>
           </div>
 
+          {/* Seção de listagens e ações rápidas */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {/* Card de Reservas Recentes - lista as últimas reservas */}
             <Card className="col-span-2">
               <CardHeader>
                 <CardTitle>Reservas Recentes</CardTitle>
@@ -194,11 +230,13 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
+                  {/* Iteração sobre o array de reservas recentes */}
                   {recentBookings.map((booking) => (
                     <div
                       key={booking.name}
                       className="flex items-center justify-between space-x-4"
                     >
+                      {/* Informações do hóspede com avatar */}
                       <div className="flex items-center space-x-4">
                         <Avatar>
                           <AvatarImage
@@ -216,6 +254,8 @@ export default function DashboardPage() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Informações de data e status com badge contextual */}
                       <div className="flex items-center space-x-2">
                         <p className="text-sm text-muted-foreground whitespace-nowrap">
                           {booking.date}
@@ -237,12 +277,15 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Card de Ações Rápidas - botões para operações comuns */}
             <Card>
               <CardHeader>
                 <CardTitle>Ações Rápidas</CardTitle>
                 <CardDescription>Tarefas e operações comuns</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2">
+                {/* Botão para abrir o diálogo de criação de reserva */}
                 <Button
                   className="w-full justify-start"
                   variant="outline"
@@ -251,6 +294,8 @@ export default function DashboardPage() {
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   Nova Reserva
                 </Button>
+
+                {/* Botão para abrir o diálogo de adição de hóspede */}
                 <Button
                   className="w-full justify-start"
                   variant="outline"
@@ -259,10 +304,14 @@ export default function DashboardPage() {
                   <UsersIcon className="mr-2 h-4 w-4" />
                   Adicionar Hóspede
                 </Button>
+
+                {/* Botão para verificar status de quarto */}
                 <Button className="w-full justify-start" variant="outline">
                   <BedDoubleIcon className="mr-2 h-4 w-4" />
                   Status do Quarto
                 </Button>
+
+                {/* Botão para processar pagamento */}
                 <Button className="w-full justify-start" variant="outline">
                   <CreditCardIcon className="mr-2 h-4 w-4" />
                   Processar Pagamento
@@ -271,6 +320,8 @@ export default function DashboardPage() {
             </Card>
           </div>
         </TabsContent>
+
+        {/* Conteúdo da aba Análises - ainda não implementado */}
         <TabsContent value="analises" className="space-y-4">
           <Card>
             <CardHeader>
@@ -288,6 +339,8 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Conteúdo da aba Relatórios - ainda não implementado */}
         <TabsContent value="relatorios" className="space-y-4">
           <Card>
             <CardHeader>
@@ -307,14 +360,14 @@ export default function DashboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Diálogo para adicionar nova reserva */}
+      {/* Diálogo para adicionar nova reserva - aberto via estado */}
       <AddBookingDialog
         open={showAddBookingDialog}
         onOpenChange={setShowAddBookingDialog}
         onAddBooking={handleAddBooking}
       />
 
-      {/* Diálogo para adicionar novo hóspede */}
+      {/* Diálogo para adicionar novo hóspede - aberto via estado */}
       <AddGuestDialog
         open={showAddGuestDialog}
         onOpenChange={setShowAddGuestDialog}
@@ -327,6 +380,14 @@ export default function DashboardPage() {
 /**
  * Dados de exemplo para as reservas recentes
  * Em um ambiente de produção, estes dados viriam de uma API ou banco de dados
+ *
+ * Estrutura de cada item:
+ * - name: Nome completo do hóspede
+ * - room: Número do quarto reservado
+ * - date: Informação de check-in ou check-out
+ * - status: Estado atual da reserva (Confirmada, Pendente, Hospedado)
+ * - avatar: URL da imagem do hóspede
+ * - initials: Iniciais do nome para fallback do avatar
  */
 const recentBookings = [
   {
