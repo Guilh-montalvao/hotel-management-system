@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,166 +32,117 @@ import {
 import { AddRoomDialog } from "@/components/rooms/add-room-dialog";
 import { RoomDetailsDialog } from "@/components/rooms/room-details-dialog";
 import { useBookingStore } from "@/lib/store";
-import { roomService } from "@/lib/services/room-service";
 import { Room } from "@/lib/types";
+import { useRooms } from "@/hooks/useRooms";
+import { useRoomFilters } from "@/hooks/useRoomFilters";
 
 /**
  * Página de gerenciamento de quartos
- * Permite visualizar, filtrar e gerenciar todos os quartos do hotel
+ *
+ * Esta página permite ao usuário:
+ * - Visualizar todos os quartos do hotel
+ * - Filtrar quartos por tipo, status ou texto de busca
+ * - Ver estatísticas sobre ocupação dos quartos
+ * - Adicionar novos quartos
+ * - Visualizar detalhes de um quarto específico
+ * - Excluir quartos existentes
+ * - Iniciar o processo de reserva de um quarto
  */
 export default function RoomsPage() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [currentTab, setCurrentTab] = useState("all");
-  const [roomData, setRoomData] = useState<Room[]>([]);
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>([]);
+  /**
+   * Hooks personalizados para separar a lógica da interface
+   * useRooms: gerencia operações relacionadas aos quartos (busca, adição, exclusão)
+   * useRoomFilters: gerencia a filtragem e estatísticas dos quartos
+   */
+  const {
+    rooms, // Lista completa de quartos
+    isLoading, // Estado de carregamento da lista
+    error, // Erro, se houver
+    addRoom: addRoomToDb, // Função para adicionar quarto
+    deleteRoom: deleteRoomFromDb, // Função para excluir quarto
+  } = useRooms();
+
+  const {
+    searchQuery, // Texto atual da pesquisa
+    setSearchQuery, // Função para atualizar pesquisa
+    statusFilter, // Filtro atual de status
+    setStatusFilter, // Função para atualizar filtro de status
+    typeFilter, // Filtro atual de tipo
+    setTypeFilter, // Função para atualizar filtro de tipo
+    clearFilters, // Função para limpar todos os filtros
+    filteredRooms, // Lista de quartos após aplicação dos filtros
+    statistics, // Estatísticas calculadas (total, disponíveis, etc.)
+  } = useRoomFilters(rooms);
+
+  /**
+   * Estados locais para controlar os diálogos e quarto selecionado
+   */
+  // Estado para controlar a visibilidade do diálogo de adicionar quarto
   const [showAddRoomDialog, setShowAddRoomDialog] = useState(false);
+  // Estado para controlar a visibilidade do diálogo de detalhes
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  // Estado para armazenar o quarto selecionado para visualização de detalhes
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Buscar dados dos quartos do Supabase
-  useEffect(() => {
-    const fetchRooms = async () => {
-      setIsLoading(true);
-      try {
-        const rooms = await roomService.getAllRooms();
-        setRoomData(rooms);
-        setFilteredRooms(rooms);
-      } catch (error) {
-        console.error("Erro ao buscar quartos:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchRooms();
-  }, []);
-
-  // Calcular estatísticas dos quartos
-  const totalRooms = roomData.length;
-  const availableRooms = roomData.filter(
-    (room) => room.status === "Disponível"
-  ).length;
-  const occupiedRooms = roomData.filter(
-    (room) => room.status === "Ocupado"
-  ).length;
-  const cleaningRooms = roomData.filter(
-    (room) => room.status === "Limpeza"
-  ).length;
-
-  // Função para filtrar quartos com base na pesquisa, filtro de status e aba atual
-  useEffect(() => {
-    let results = [...roomData];
-
-    // Filtrar por tipo (aba)
-    if (currentTab !== "all") {
-      const typeMap = {
-        solteiro: "Solteiro",
-        casal: "Casal",
-      };
-      results = results.filter(
-        (room) => room.type === typeMap[currentTab as keyof typeof typeMap]
-      );
-    }
-
-    // Filtrar por status
-    if (statusFilter !== "all") {
-      const statusMap = {
-        available: "Disponível",
-        occupied: "Ocupado",
-        cleaning: "Limpeza",
-      };
-      results = results.filter(
-        (room) =>
-          room.status === statusMap[statusFilter as keyof typeof statusMap]
-      );
-    }
-
-    // Filtrar por pesquisa (número ou descrição)
-    if (searchQuery.trim() !== "") {
-      const query = searchQuery.toLowerCase();
-      results = results.filter(
-        (room) =>
-          room.number.toLowerCase().includes(query) ||
-          room.description?.toLowerCase().includes(query) ||
-          false
-      );
-    }
-
-    setFilteredRooms(results);
-  }, [searchQuery, statusFilter, currentTab, roomData]);
-
-  // Função para limpar filtros
-  const clearFilters = () => {
-    setSearchQuery("");
-    setStatusFilter("all");
-  };
-
-  // Função para atualizar os filtros manualmente
-  const handleStatusChange = (value: string) => {
-    setStatusFilter(value);
-  };
-
-  // Função para atualizar a aba atual
-  const handleTabChange = (value: string) => {
-    setCurrentTab(value);
-  };
-
-  // Função para atualizar a lista de quartos
-  const refreshRooms = async () => {
-    setIsLoading(true);
-    try {
-      const rooms = await roomService.getAllRooms();
-      setRoomData(rooms);
-      setFilteredRooms(rooms);
-    } catch (error) {
-      console.error("Erro ao buscar quartos:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Função para adicionar um novo quarto
+  /**
+   * Manipulador para adicionar um novo quarto
+   * @param data Dados do formulário de criação de quarto
+   */
   const handleAddRoom = async (data: any) => {
-    // Criando um novo quarto com os dados do formulário
+    // Construindo o objeto do quarto com os dados do formulário
     const newRoom = {
       number: data.number,
       type: data.type as "Solteiro" | "Casal",
-      status: "Disponível" as const,
-      rate: parseFloat(data.rate),
+      status: "Disponível" as const, // Quartos novos sempre começam disponíveis
+      rate: parseFloat(data.rate), // Convertendo string para número
       description: data.description,
-      image_url: data.image_url || null,
+      image_url: data.image_url || null, // Usando null se não houver imagem
     };
 
-    try {
-      await roomService.addRoom(newRoom);
-      // Atualizar a lista de quartos
-      refreshRooms();
-    } catch (error) {
-      console.error("Erro ao adicionar quarto:", error);
+    // Chamando a função do hook para persistir no banco de dados
+    const result = await addRoomToDb(newRoom);
+    // Verificando se houve erro na operação
+    if (!result.success) {
+      console.error("Erro ao adicionar quarto:", result.error);
     }
   };
 
-  // Função para abrir o diálogo de detalhes do quarto
+  /**
+   * Manipulador para visualizar detalhes de um quarto
+   * @param room Quarto a ser visualizado
+   */
   const handleViewRoomDetails = (room: Room) => {
+    // Armazena o quarto selecionado no estado
     setSelectedRoom(room);
+    // Abre o diálogo de detalhes
     setShowDetailsDialog(true);
   };
 
-  // Função para excluir um quarto
+  /**
+   * Manipulador para excluir um quarto
+   * @param id ID do quarto a ser excluído
+   */
   const handleDeleteRoom = async (id: string) => {
-    try {
-      await roomService.deleteRoom(id);
-      // Atualizar a lista de quartos
-      refreshRooms();
-    } catch (error) {
-      console.error("Erro ao excluir quarto:", error);
+    // Chamando a função do hook para persistir a exclusão
+    const result = await deleteRoomFromDb(id);
+    // Verificando se houve erro na operação
+    if (!result.success) {
+      console.error("Erro ao excluir quarto:", result.error);
     }
+  };
+
+  /**
+   * Manipulador para mudança de aba (tipo de quarto)
+   * @param value Valor da aba selecionada
+   */
+  const handleTabChange = (value: string) => {
+    // Atualiza o filtro de tipo com base na aba selecionada
+    setTypeFilter(value as any);
   };
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Cabeçalho da página com título e botões de ação */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">
           Gerenciamento de Quartos
@@ -201,7 +152,11 @@ export default function RoomsPage() {
             <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Filtrar
           </Button>
-          <Button variant="outline" size="sm" onClick={refreshRooms}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.location.reload()}
+          >
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Atualizar
           </Button>
@@ -212,7 +167,9 @@ export default function RoomsPage() {
         </div>
       </div>
 
+      {/* Cards de estatísticas - exibem números de quartos por status */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-4">
+        {/* Card de total de quartos */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -224,12 +181,14 @@ export default function RoomsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalRooms}</div>
+            <div className="text-2xl font-bold">{statistics.total}</div>
             <p className="text-xs text-muted-foreground">
               Todos os quartos do hotel
             </p>
           </CardContent>
         </Card>
+
+        {/* Card de quartos disponíveis */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Disponíveis</CardTitle>
@@ -241,12 +200,14 @@ export default function RoomsPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{availableRooms}</div>
+            <div className="text-2xl font-bold">{statistics.available}</div>
             <p className="text-xs text-muted-foreground">
               Prontos para reserva
             </p>
           </CardContent>
         </Card>
+
+        {/* Card de quartos ocupados */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Ocupados</CardTitle>
@@ -258,10 +219,12 @@ export default function RoomsPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{occupiedRooms}</div>
+            <div className="text-2xl font-bold">{statistics.occupied}</div>
             <p className="text-xs text-muted-foreground">Atualmente em uso</p>
           </CardContent>
         </Card>
+
+        {/* Card de quartos em limpeza */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Limpeza</CardTitle>
@@ -273,23 +236,28 @@ export default function RoomsPage() {
             </Badge>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{cleaningRooms}</div>
+            <div className="text-2xl font-bold">{statistics.cleaning}</div>
             <p className="text-xs text-muted-foreground">Em limpeza</p>
           </CardContent>
         </Card>
       </div>
 
+      {/* Card principal com a lista de quartos e filtros */}
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
+              {/* Título e descrição */}
               <div>
                 <CardTitle>Status dos Quartos</CardTitle>
                 <CardDescription>
                   Gerencie e atualize o status dos quartos
                 </CardDescription>
               </div>
+
+              {/* Controles de filtro - campo de busca e seletor de status */}
               <div className="flex items-center gap-2">
+                {/* Campo de busca com ícone e botão para limpar */}
                 <div className="relative w-[250px]">
                   <SearchIcon
                     className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground"
@@ -313,7 +281,12 @@ export default function RoomsPage() {
                     </Button>
                   )}
                 </div>
-                <Select value={statusFilter} onValueChange={handleStatusChange}>
+
+                {/* Seletor de filtro por status */}
+                <Select
+                  value={statusFilter}
+                  onValueChange={(value) => setStatusFilter(value as any)}
+                >
                   <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filtrar por status" />
                   </SelectTrigger>
@@ -327,11 +300,14 @@ export default function RoomsPage() {
               </div>
             </div>
           </CardHeader>
+
           <CardContent>
+            {/* Tabs para filtrar por tipo de quarto */}
             <Tabs
               defaultValue="all"
               className="space-y-4"
               onValueChange={handleTabChange}
+              value={typeFilter}
             >
               <TabsList>
                 <TabsTrigger value="all">Todos os Quartos</TabsTrigger>
@@ -339,15 +315,18 @@ export default function RoomsPage() {
                 <TabsTrigger value="casal">Casal</TabsTrigger>
               </TabsList>
 
+              {/* Exibição condicional baseada no estado de carregamento e resultados */}
               {isLoading ? (
+                // Estado de carregamento
                 <div className="flex items-center justify-center p-8">
                   <div className="text-muted-foreground">
                     Carregando quartos...
                   </div>
                 </div>
               ) : filteredRooms.length > 0 ? (
-                <TabsContent value={currentTab} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                // Lista de quartos filtrados
+                <TabsContent value={typeFilter} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {filteredRooms.map((room) => (
                       <RoomCard
                         key={room.id}
@@ -358,6 +337,7 @@ export default function RoomsPage() {
                   </div>
                 </TabsContent>
               ) : (
+                // Mensagem de nenhum resultado encontrado
                 <div className="flex flex-col items-center justify-center p-8 text-center">
                   <div className="text-muted-foreground mb-4">
                     Nenhum quarto encontrado com os filtros atuais.
@@ -373,14 +353,14 @@ export default function RoomsPage() {
         </Card>
       </div>
 
-      {/* Dialog para adicionar novo quarto */}
+      {/* Diálogo para adicionar novo quarto - exibido quando showAddRoomDialog é true */}
       <AddRoomDialog
         open={showAddRoomDialog}
         onOpenChange={setShowAddRoomDialog}
         onAddRoom={handleAddRoom}
       />
 
-      {/* Dialog para exibir detalhes do quarto */}
+      {/* Diálogo para exibir detalhes do quarto - exibido quando showDetailsDialog é true */}
       <RoomDetailsDialog
         open={showDetailsDialog}
         onOpenChange={setShowDetailsDialog}
@@ -396,9 +376,16 @@ export default function RoomsPage() {
 }
 
 /**
- * Componente para exibir o cartão de um quarto
- * @param room - Dados do quarto a ser exibido
- * @param onViewDetails - Função chamada quando o botão "Ver Detalhes" é clicado
+ * Componente RoomCard - Exibe um cartão com informações de um quarto individual
+ *
+ * Este componente é responsável por:
+ * - Mostrar detalhes visuais do quarto (imagem, número, tipo)
+ * - Exibir o status atual com código de cores apropriado
+ * - Permitir visualizar detalhes completos do quarto
+ * - Iniciar o processo de reserva (se o quarto estiver disponível)
+ *
+ * @param room Objeto contendo os dados do quarto a ser exibido
+ * @param onViewDetails Função de callback chamada quando o usuário clica em "Ver Detalhes"
  */
 function RoomCard({
   room,
@@ -408,8 +395,13 @@ function RoomCard({
   onViewDetails: (room: Room) => void;
 }) {
   const router = useRouter();
+  // Obtém funções do store global para o processo de reserva
   const { setSelectedRoom, setShouldOpenBookingDialog } = useBookingStore();
 
+  /**
+   * Manipulador para o clique no botão de reserva
+   * Inicia o fluxo de reserva armazenando dados no store e redirecionando
+   */
   const handleReserveClick = () => {
     // Armazena o quarto selecionado no store global
     setSelectedRoom(room);
@@ -421,12 +413,19 @@ function RoomCard({
 
   return (
     <Card className="overflow-hidden flex flex-col h-full">
-      <div className="aspect-video relative bg-muted">
+      {/* Área de imagem do quarto com badge de status */}
+      <div className="aspect-video relative bg-muted h-[180px] w-full">
         <img
-          src={room.image_url || "/placeholder.svg?height=200&width=300"}
+          src={
+            room.image_url ||
+            "https://placehold.co/600x400/e2e8f0/1e293b?text=Quarto+" +
+              room.number
+          }
           alt={`Quarto ${room.number}`}
           className="object-cover w-full h-full"
+          style={{ objectFit: "cover" }}
         />
+        {/* Badge de status com cores condicionais baseadas no status */}
         <Badge
           className={`absolute top-2 right-2 ${
             room.status === "Disponível"
@@ -439,6 +438,8 @@ function RoomCard({
           {room.status}
         </Badge>
       </div>
+
+      {/* Cabeçalho do cartão com número e tipo de quarto */}
       <CardHeader className="p-4">
         <div className="flex justify-between items-center">
           <CardTitle className="text-lg">Quarto {room.number}</CardTitle>
@@ -446,25 +447,29 @@ function RoomCard({
         </div>
         <CardDescription>{room.description}</CardDescription>
       </CardHeader>
+
+      {/* Rodapé do cartão com preço e botões de ação */}
       <CardContent className="p-4 pt-0 mt-auto">
-        <div className="flex justify-between items-center">
-          <div className="font-medium">R$ {room.rate}/diária</div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => onViewDetails(room)}
-            >
-              Ver Detalhes
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleReserveClick}
-              disabled={room.status !== "Disponível"}
-            >
-              Reservar
-            </Button>
-          </div>
+        <div className="text-lg font-semibold mb-2">R${room.rate}/noite</div>
+        <div className="flex gap-2">
+          {/* Botão para ver detalhes */}
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={() => onViewDetails(room)}
+          >
+            Ver Detalhes
+          </Button>
+
+          {/* Botão para reservar - desabilitado se o quarto não estiver disponível */}
+          <Button
+            variant={room.status === "Disponível" ? "default" : "outline"}
+            disabled={room.status !== "Disponível"}
+            className="flex-1"
+            onClick={handleReserveClick}
+          >
+            Reservar
+          </Button>
         </div>
       </CardContent>
     </Card>
