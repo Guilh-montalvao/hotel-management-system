@@ -473,9 +473,134 @@ export const useSupabase = () => {
     };
   };
 
+  // Pagamentos
+  const usePayments = () => {
+    const [state, setState] = useState<DataOperation<any[]>>({
+      isLoading: true,
+      isError: false,
+      error: null,
+      data: null,
+    });
+
+    useEffect(() => {
+      const fetchPayments = async () => {
+        try {
+          const { data, error } = await supabase.from("payments").select(`
+              *,
+              bookings (id, check_in, check_out, total_amount, guests (name, email), rooms (number, type))
+            `);
+
+          if (error) throw error;
+
+          setState({
+            isLoading: false,
+            isError: false,
+            error: null,
+            data,
+          });
+        } catch (error: any) {
+          setState({
+            isLoading: false,
+            isError: true,
+            error,
+            data: null,
+          });
+          console.error("Erro ao buscar pagamentos:", error);
+          toast.error("Erro ao carregar pagamentos");
+        }
+      };
+
+      fetchPayments();
+    }, []);
+
+    const addPayment = async (paymentData: any) => {
+      try {
+        const { data, error } = await supabase
+          .from("payments")
+          .insert([paymentData]).select(`
+          *,
+          bookings (id, check_in, check_out, total_amount, guests (name, email), rooms (number, type))
+        `);
+
+        if (error) throw error;
+
+        setState((prev) => ({
+          ...prev,
+          data: prev.data ? [data[0], ...prev.data] : [data[0]],
+        }));
+
+        toast.success("Pagamento registrado com sucesso");
+        return data[0];
+      } catch (error: any) {
+        console.error("Erro ao registrar pagamento:", error);
+        toast.error("Erro ao registrar pagamento");
+        throw error;
+      }
+    };
+
+    const updatePaymentStatus = async (id: string, status: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("payments")
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq("id", id).select(`
+            *,
+            bookings (id, check_in, check_out, total_amount, guests (name, email), rooms (number, type))
+          `);
+
+        if (error) throw error;
+
+        setState((prev) => ({
+          ...prev,
+          data: prev.data
+            ? prev.data.map((payment) =>
+                payment.id === id ? data[0] : payment
+              )
+            : prev.data,
+        }));
+
+        toast.success("Status do pagamento atualizado");
+        return data[0];
+      } catch (error: any) {
+        console.error("Erro ao atualizar status do pagamento:", error);
+        toast.error("Erro ao atualizar status do pagamento");
+        throw error;
+      }
+    };
+
+    const deletePayment = async (id: string) => {
+      try {
+        const { error } = await supabase.from("payments").delete().eq("id", id);
+
+        if (error) throw error;
+
+        setState((prev) => ({
+          ...prev,
+          data: prev.data
+            ? prev.data.filter((payment) => payment.id !== id)
+            : prev.data,
+        }));
+
+        toast.success("Pagamento excluído com sucesso");
+      } catch (error: any) {
+        console.error("Erro ao excluir pagamento:", error);
+        toast.error("Erro ao excluir pagamento");
+        throw error;
+      }
+    };
+
+    return {
+      ...state,
+      addPayment,
+      updatePaymentStatus,
+      deletePayment,
+    };
+  };
+
   return {
     useRooms,
     useGuests,
     useBookings,
+    usePayments,
   };
 };

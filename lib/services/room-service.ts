@@ -154,4 +154,33 @@ export const roomService = {
     // Retorna true indicando sucesso
     return true;
   },
+
+  /**
+   * Busca o histórico de hospedagem de um quarto específico
+   *
+   * Esta função recupera todas as reservas (passadas, atuais e futuras)
+   * associadas a um quarto, incluindo os dados do hóspede relacionado.
+   * Os resultados são ordenados por data de check-in decrescente.
+   *
+   * @param roomId ID único do quarto para buscar o histórico
+   * @returns Promise com um array de reservas com dados dos hóspedes
+   * @throws Erro de console se a operação falhar, mas retorna array vazio para evitar quebra de UI
+   */
+  async getRoomHistory(roomId: string) {
+    // Consulta a tabela 'bookings' filtrando pelo room_id e incluindo dados do hóspede
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*, guests(*)")
+      .eq("room_id", roomId)
+      .order("check_in", { ascending: false });
+
+    // Se ocorrer um erro, registra no console e retorna array vazio
+    if (error) {
+      console.error("Erro ao buscar histórico do quarto:", error);
+      return [];
+    }
+
+    // Retorna os dados recuperados
+    return data || [];
+  },
 };

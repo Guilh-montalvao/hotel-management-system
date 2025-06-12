@@ -12,6 +12,7 @@
 import { supabase } from "../supabase";
 import { Booking } from "../types";
 import { roomService } from "./room-service";
+import { guestService } from "./guest-service";
 
 /**
  * Objeto que contém todos os métodos para manipulação de reservas
@@ -105,7 +106,8 @@ export const bookingService = {
    * Adiciona uma nova reserva ao sistema
    *
    * Esta função insere um novo registro de reserva no banco de dados e
-   * atualiza automaticamente o status do quarto e do hóspede relacionados.
+   * atualiza automaticamente o status do hóspede relacionado.
+   * IMPORTANTE: O quarto permanece "Disponível" até o check-in ser realizado.
    *
    * @param booking Objeto com os dados da reserva a ser adicionada (sem id, created_at e updated_at)
    * @returns Promise com a reserva adicionada (incluindo o ID gerado) ou null se falhar
@@ -127,14 +129,11 @@ export const bookingService = {
       return null;
     }
 
-    // Atualiza o status do quarto para ocupado
-    await roomService.updateRoomStatus(booking.room_id, "Ocupado");
+    // CORREÇÃO: Quarto permanece "Disponível" até o check-in
+    // O status do quarto só mudará para "Ocupado" durante o check-in
 
-    // Atualiza o status do hóspede para "Reservado"
-    await supabase
-      .from("guests")
-      .update({ status: "Reservado", updated_at: new Date().toISOString() })
-      .eq("id", booking.guest_id);
+    // Sincroniza automaticamente o status do hóspede baseado nas reservas
+    await guestService.syncGuestStatus(booking.guest_id);
 
     // Retorna a reserva adicionada, incluindo o ID gerado
     return data;
@@ -200,11 +199,8 @@ export const bookingService = {
         // Garante que o status do quarto está como "Ocupado"
         await roomService.updateRoomStatus(booking.room_id, "Ocupado");
 
-        // Atualiza o status do hóspede para "Hospedado"
-        await supabase
-          .from("guests")
-          .update({ status: "Hospedado", updated_at: new Date().toISOString() })
-          .eq("id", booking.guest_id);
+        // Sincroniza automaticamente o status do hóspede
+        await guestService.syncGuestStatus(booking.guest_id);
       }
     }
 
@@ -236,11 +232,8 @@ export const bookingService = {
     if (result && booking) {
       // A atualização do status do quarto para limpeza é feita no updateBookingStatus
 
-      // Atualiza o status do hóspede para "Sem estadia"
-      await supabase
-        .from("guests")
-        .update({ status: "Sem estadia", updated_at: new Date().toISOString() })
-        .eq("id", booking.guest_id);
+      // Sincroniza automaticamente o status do hóspede
+      await guestService.syncGuestStatus(booking.guest_id);
     }
 
     // Retorna o resultado da operação
