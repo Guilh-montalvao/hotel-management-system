@@ -1,4 +1,4 @@
-# Sistema de Gestão Hoteleira
+# Sistema de Gestão de Hotel (Desenvolvido para o meu Avô)
 
 Sistema completo para gerenciamento de hotel desenvolvido com Next.js 15, TypeScript, Tailwind CSS e Supabase.
 
