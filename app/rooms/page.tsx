@@ -35,6 +35,9 @@ import { useBookingStore } from "@/lib/store";
 import { Room } from "@/lib/types";
 import { useRooms } from "@/hooks/useRooms";
 import { useRoomFilters } from "@/hooks/useRoomFilters";
+import { roomService } from "@/lib/services/room-service";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Página de gerenciamento de quartos
@@ -60,6 +63,7 @@ export default function RoomsPage() {
     error, // Erro, se houver
     addRoom: addRoomToDb, // Função para adicionar quarto
     deleteRoom: deleteRoomFromDb, // Função para excluir quarto
+    fetchRooms, // Função para recarregar quartos
   } = useRooms();
 
   const {
@@ -138,6 +142,24 @@ export default function RoomsPage() {
   const handleTabChange = (value: string) => {
     // Atualiza o filtro de tipo com base na aba selecionada
     setTypeFilter(value as any);
+  };
+
+  // Função para liberar quarto da limpeza
+  const handleReleaseFromCleaning = async (roomId: string) => {
+    try {
+      const success = await roomService.updateRoomStatus(roomId, "Disponível");
+
+      if (success) {
+        // Recarregar a lista de quartos usando o hook
+        await fetchRooms();
+        toast.success("Quarto liberado da limpeza com sucesso!");
+      } else {
+        toast.error("Erro ao liberar quarto da limpeza");
+      }
+    } catch (error) {
+      console.error("Erro ao liberar quarto:", error);
+      toast.error("Erro inesperado ao liberar quarto");
+    }
   };
 
   return (
@@ -332,6 +354,7 @@ export default function RoomsPage() {
                         key={room.id}
                         room={room}
                         onViewDetails={handleViewRoomDetails}
+                        onReleaseFromCleaning={handleReleaseFromCleaning}
                       />
                     ))}
                   </div>
@@ -383,16 +406,20 @@ export default function RoomsPage() {
  * - Exibir o status atual com código de cores apropriado
  * - Permitir visualizar detalhes completos do quarto
  * - Iniciar o processo de reserva (se o quarto estiver disponível)
+ * - Liberar quartos da limpeza
  *
  * @param room Objeto contendo os dados do quarto a ser exibido
  * @param onViewDetails Função de callback chamada quando o usuário clica em "Ver Detalhes"
+ * @param onReleaseFromCleaning Função de callback chamada quando o usuário clica em "Liberar"
  */
 function RoomCard({
   room,
   onViewDetails,
+  onReleaseFromCleaning,
 }: {
   room: Room;
   onViewDetails: (room: Room) => void;
+  onReleaseFromCleaning: (roomId: string) => void;
 }) {
   const router = useRouter();
   // Obtém funções do store global para o processo de reserva
@@ -409,6 +436,14 @@ function RoomCard({
     setShouldOpenBookingDialog(true);
     // Redireciona para a página de reservas
     router.push("/bookings");
+  };
+
+  /**
+   * Manipulador para o clique no botão de liberar
+   * Libera o quarto da limpeza mudando status para Disponível
+   */
+  const handleReleaseClick = () => {
+    onReleaseFromCleaning(room.id);
   };
 
   return (
@@ -461,15 +496,27 @@ function RoomCard({
             Ver Detalhes
           </Button>
 
-          {/* Botão para reservar - desabilitado se o quarto não estiver disponível */}
-          <Button
-            variant={room.status === "Disponível" ? "default" : "outline"}
-            disabled={room.status !== "Disponível"}
-            className="flex-1"
-            onClick={handleReserveClick}
-          >
-            Reservar
-          </Button>
+          {/* Botão condicional baseado no status do quarto */}
+          {room.status === "Limpeza" ? (
+            /* Botão para liberar da limpeza */
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={handleReleaseClick}
+            >
+              Liberar
+            </Button>
+          ) : (
+            /* Botão para reservar - desabilitado se o quarto não estiver disponível */
+            <Button
+              variant={room.status === "Disponível" ? "default" : "outline"}
+              disabled={room.status !== "Disponível"}
+              className="flex-1"
+              onClick={handleReserveClick}
+            >
+              Reservar
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

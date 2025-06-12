@@ -40,6 +40,10 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useSupabase } from "@/hooks/useSupabase";
+import { paymentService } from "@/lib/services/payment-service";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
 /**
  * Página de gerenciamento de pagamentos
@@ -49,12 +53,56 @@ export default function PaymentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentTab, setCurrentTab] = useState("all");
-  const [filteredTransactions, setFilteredTransactions] =
-    useState(transactionData);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [paymentMetrics, setPaymentMetrics] = useState<any>(null);
+  const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Buscar dados reais dos pagamentos
+  useEffect(() => {
+    const fetchPaymentData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Buscar pagamentos e reservas pendentes
+        const paymentsData = await paymentService.getAllTransactions();
+
+        // Buscar métricas
+        const metricsData = await paymentService.getPaymentMetrics();
+
+        setPayments(paymentsData);
+        setPaymentMetrics(metricsData);
+        setFilteredTransactions(paymentsData);
+      } catch (error) {
+        console.error("Erro ao buscar dados de pagamentos:", error);
+        toast.error("Erro ao carregar dados de pagamentos");
+        // Fallback para dados vazios se não conseguir buscar
+        setPayments([]);
+        setPaymentMetrics({
+          totalRevenue: 0,
+          pendingPayments: 0,
+          todayTransactions: 0,
+          monthlyTransactions: 0,
+          revenueGrowth: 0,
+          pendingGrowth: 0,
+        });
+        setFilteredTransactions([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPaymentData();
+  }, []);
 
   // Função para filtrar transações com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
-    let results = [...transactionData];
+    if (!payments || payments.length === 0) {
+      setFilteredTransactions([]);
+      return;
+    }
+
+    let results = [...payments];
 
     // Filtrar por tipo de aba
     if (currentTab !== "all") {
@@ -62,46 +110,52 @@ export default function PaymentsPage() {
         results = results.slice(0, 3); // Mostrar apenas as 3 transações mais recentes
       } else if (currentTab === "pending") {
         results = results.filter(
-          (transaction) => transaction.status === "Pendente"
+          (payment) =>
+            payment.status === "Processando" || payment.status === "Pendente"
         );
       } else if (currentTab === "refunds") {
-        results = results.filter(
-          (transaction) => transaction.status === "Reembolsado"
-        );
+        results = results.filter((payment) => payment.status === "Estornado");
       }
     }
 
     // Filtrar por status selecionado
     if (statusFilter !== "all") {
       const statusMap = {
-        completed: "Concluído",
-        pending: "Pendente",
-        failed: "Falha",
-        refunded: "Reembolsado",
+        completed: "Aprovado",
+        pending: ["Processando", "Pendente"], // Incluir ambos os status
+        failed: "Rejeitado",
+        refunded: "Estornado",
       };
 
-      if (statusMap[statusFilter as keyof typeof statusMap]) {
-        results = results.filter(
-          (transaction) =>
-            transaction.status ===
-            statusMap[statusFilter as keyof typeof statusMap]
-        );
+      const targetStatus = statusMap[statusFilter as keyof typeof statusMap];
+      if (targetStatus) {
+        if (Array.isArray(targetStatus)) {
+          results = results.filter((payment) =>
+            targetStatus.includes(payment.status)
+          );
+        } else {
+          results = results.filter(
+            (payment) => payment.status === targetStatus
+          );
+        }
       }
     }
 
-    // Filtrar por pesquisa (ID, nome do hóspede)
+    // Filtrar por pesquisa (ID, nome do hóspede, método)
     if (searchQuery.trim() !== "") {
       const query = searchQuery.toLowerCase();
       results = results.filter(
-        (transaction) =>
-          transaction.id.toLowerCase().includes(query) ||
-          transaction.guestName.toLowerCase().includes(query) ||
-          transaction.method.toLowerCase().includes(query)
+        (payment) =>
+          payment.id.toLowerCase().includes(query) ||
+          (payment.bookings?.guests?.name || "")
+            .toLowerCase()
+            .includes(query) ||
+          payment.method.toLowerCase().includes(query)
       );
     }
 
     setFilteredTransactions(results);
-  }, [searchQuery, statusFilter, currentTab]);
+  }, [searchQuery, statusFilter, currentTab, payments]);
 
   // Função para limpar filtros
   const clearFilters = () => {
@@ -151,13 +205,27 @@ export default function PaymentsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$45.231,89</div>
+            <div className="text-2xl font-bold">
+              {isLoading
+                ? "R$ 0,00"
+                : `R$ ${(paymentMetrics?.totalRevenue || 0).toLocaleString(
+                    "pt-BR",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }
+                  )}`}
+            </div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon
                 className="mr-1 h-4 w-4 text-emerald-500"
                 aria-hidden="true"
               />
-              +20,1% em relação ao mês anterior
+              {isLoading
+                ? "0.0% em relação ao mês anterior"
+                : `${
+                    paymentMetrics?.revenueGrowth?.toFixed(1) || 0
+                  }% em relação ao mês anterior`}
             </p>
           </CardContent>
         </Card>
@@ -172,13 +240,21 @@ export default function PaymentsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$5.946,00</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowDownIcon
-                className="mr-1 h-4 w-4 text-red-500"
-                aria-hidden="true"
-              />
-              -4,3% em relação à semana anterior
+            <div className="text-2xl font-bold">
+              {isLoading
+                ? "R$ 0,00"
+                : `R$ ${(paymentMetrics?.pendingPayments || 0).toLocaleString(
+                    "pt-BR",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }
+                  )}`}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isLoading
+                ? "0.0% em relação à semana anterior"
+                : "Aguardando pagamento"}
             </p>
           </CardContent>
         </Card>
@@ -191,8 +267,12 @@ export default function PaymentsPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">1.248</div>
-            <p className="text-xs text-muted-foreground">Neste mês</p>
+            <div className="text-2xl font-bold">
+              {isLoading ? "0" : paymentMetrics?.todayTransactions || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isLoading ? "Neste mês" : "Neste mês"}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -212,7 +292,7 @@ export default function PaymentsPage() {
                 className="mr-1 h-4 w-4 text-emerald-500"
                 aria-hidden="true"
               />
-              +2,5% em relação ao mês anterior
+              +2.5% em relação ao mês anterior
             </p>
           </CardContent>
         </Card>
@@ -325,25 +405,52 @@ export default function PaymentsPage() {
  * Componente que renderiza uma linha da tabela de transações
  * @param transaction - Dados da transação a ser exibida
  */
-function TransactionRow({ transaction }: { transaction: Transaction }) {
+function TransactionRow({ transaction }: { transaction: any }) {
+  // Gerar iniciais do nome do hóspede
+  const getInitials = (name: string) => {
+    if (!name) return "N/A";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  // Para reservas pendentes, os dados estão diretamente no bookings
+  const guestName = transaction.is_pending_booking
+    ? transaction.bookings?.guests?.name || "Hóspede não identificado"
+    : transaction.bookings?.guests?.name || "Hóspede não identificado";
+
+  const formattedDate = transaction.payment_date
+    ? format(new Date(transaction.payment_date), "dd/MM/yyyy")
+    : format(new Date(transaction.created_at), "dd/MM/yyyy");
+
+  // ID da transação: para reservas pendentes, usar ID da reserva
+  const transactionId = transaction.is_pending_booking
+    ? `booking-${transaction.booking_id}`
+    : transaction.id;
+
   return (
     <TableRow>
-      <TableCell className="font-medium">{transaction.id}</TableCell>
+      <TableCell className="font-medium">
+        #{transactionId.toString().slice(0, 8)}
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarImage
-              src={transaction.guestAvatar}
-              alt={transaction.guestName}
-            />
-            <AvatarFallback>{transaction.guestInitials}</AvatarFallback>
+            <AvatarFallback>{getInitials(guestName)}</AvatarFallback>
           </Avatar>
-          <div className="font-medium">{transaction.guestName}</div>
+          <div className="font-medium">{guestName}</div>
         </div>
       </TableCell>
-      <TableCell>{transaction.date}</TableCell>
+      <TableCell>{formattedDate}</TableCell>
       <TableCell className="font-medium">
-        R${transaction.amount.toFixed(2).replace(".", ",")}
+        R${" "}
+        {(transaction.amount || 0).toLocaleString("pt-BR", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -351,19 +458,23 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
             className="h-4 w-4 text-muted-foreground"
             aria-hidden="true"
           />
-          {transaction.method}
+          {transaction.method || "Pendente"}
         </div>
       </TableCell>
       <TableCell>
         <Badge
           variant="outline"
           className={
-            transaction.status === "Concluído"
+            transaction.status === "Aprovado"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
-              : transaction.status === "Pendente"
+              : transaction.status === "Processando"
               ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800"
-              : transaction.status === "Falha"
+              : transaction.status === "Pendente"
+              ? "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-400 dark:border-orange-800"
+              : transaction.status === "Rejeitado"
               ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800"
+              : transaction.status === "Estornado"
+              ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-400 dark:border-purple-800"
               : "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
           }
         >
@@ -375,119 +486,13 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
           <Button variant="outline" size="sm">
             Visualizar
           </Button>
-          <Button size="sm">Imprimir</Button>
+          {transaction.status === "Pendente" ? (
+            <Button size="sm">Processar</Button>
+          ) : (
+            <Button size="sm">Imprimir</Button>
+          )}
         </div>
       </TableCell>
     </TableRow>
   );
 }
-
-/**
- * Interface que define a estrutura de dados de uma transação
- */
-interface Transaction {
-  id: string;
-  guestName: string;
-  guestInitials: string;
-  guestAvatar?: string;
-  date: string;
-  amount: number;
-  method: string;
-  status: "Concluído" | "Pendente" | "Falha" | "Reembolsado";
-}
-
-/**
- * Dados de exemplo para exibição na tabela de transações
- */
-const transactionData: Transaction[] = [
-  {
-    id: "T-1234",
-    guestName: "Ana Silva",
-    guestInitials: "AS",
-    date: "15/06/2023",
-    amount: 456.78,
-    method: "Cartão de Crédito",
-    status: "Concluído",
-  },
-  {
-    id: "T-1235",
-    guestName: "Carlos Oliveira",
-    guestInitials: "CO",
-    date: "15/06/2023",
-    amount: 789.5,
-    method: "Transferência",
-    status: "Pendente",
-  },
-  {
-    id: "T-1236",
-    guestName: "Juliana Santos",
-    guestInitials: "JS",
-    date: "14/06/2023",
-    amount: 345.0,
-    method: "PIX",
-    status: "Concluído",
-  },
-  {
-    id: "T-1237",
-    guestName: "Rafael Mendes",
-    guestInitials: "RM",
-    date: "14/06/2023",
-    amount: 1250.0,
-    method: "Cartão de Crédito",
-    status: "Reembolsado",
-  },
-  {
-    id: "T-1238",
-    guestName: "Fernanda Costa",
-    guestInitials: "FC",
-    date: "13/06/2023",
-    amount: 678.9,
-    method: "Cartão de Débito",
-    status: "Concluído",
-  },
-  {
-    id: "T-1239",
-    guestName: "Lucas Ferreira",
-    guestInitials: "LF",
-    date: "13/06/2023",
-    amount: 123.45,
-    method: "Dinheiro",
-    status: "Concluído",
-  },
-  {
-    id: "T-1240",
-    guestName: "Mariana Alves",
-    guestInitials: "MA",
-    date: "12/06/2023",
-    amount: 890.0,
-    method: "PIX",
-    status: "Falha",
-  },
-  {
-    id: "T-1241",
-    guestName: "Gabriel Santos",
-    guestInitials: "GS",
-    date: "12/06/2023",
-    amount: 567.8,
-    method: "Cartão de Crédito",
-    status: "Concluído",
-  },
-  {
-    id: "T-1242",
-    guestName: "Carolina Lima",
-    guestInitials: "CL",
-    date: "11/06/2023",
-    amount: 432.1,
-    method: "Transferência",
-    status: "Pendente",
-  },
-  {
-    id: "T-1243",
-    guestName: "Diego Pereira",
-    guestInitials: "DP",
-    date: "11/06/2023",
-    amount: 975.6,
-    method: "Cartão de Crédito",
-    status: "Concluído",
-  },
-];

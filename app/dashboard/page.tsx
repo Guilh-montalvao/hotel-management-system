@@ -9,7 +9,7 @@
  * para outras funcionalidades do sistema.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -35,6 +35,11 @@ import { OccupancyChart } from "@/components/dashboard/occupancy-chart";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
+import { dashboardService } from "@/lib/services/dashboard-service";
+import { toast } from "sonner";
+import { BreadcrumbNavigation } from "@/components/ui/breadcrumb-navigation";
+import { AnalyticsTab } from "@/components/dashboard/analytics-tab";
+import { ReportsTab } from "@/components/dashboard/reports-tab";
 
 /**
  * Página principal do painel de controle
@@ -44,6 +49,59 @@ export default function DashboardPage() {
   // Estados para controlar a visibilidade dos diálogos de adição
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [showAddGuestDialog, setShowAddGuestDialog] = useState(false);
+
+  // Estados para dados reais do dashboard
+  const [dashboardMetrics, setDashboardMetrics] = useState<any>(null);
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [occupancyData, setOccupancyData] = useState<any[]>([]);
+  const [revenueData, setRevenueData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Buscar dados reais do dashboard
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Buscar todas as métricas em paralelo
+        const [metrics, bookings, occupancy, revenue] = await Promise.all([
+          dashboardService.getDashboardMetrics(),
+          dashboardService.getRecentBookings(),
+          dashboardService.getOccupancyChartData(),
+          dashboardService.getRevenueChartData(),
+        ]);
+
+        setDashboardMetrics(metrics);
+        setRecentBookings(bookings);
+        setOccupancyData(occupancy);
+        setRevenueData(revenue);
+      } catch (error) {
+        console.error("Erro ao buscar dados do dashboard:", error);
+        toast.error("Erro ao carregar dados do dashboard");
+
+        // Fallback para dados vazios
+        setDashboardMetrics({
+          totalRooms: 0,
+          occupiedRooms: 0,
+          availableRooms: 0,
+          occupancyRate: 0,
+          totalRevenue: 0,
+          monthlyRevenue: 0,
+          activeGuests: 0,
+          pendingBookings: 0,
+          todayCheckIns: 0,
+          todayCheckOuts: 0,
+        });
+        setRecentBookings([]);
+        setOccupancyData([]);
+        setRevenueData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, []);
 
   /**
    * Função para processar a adição de uma nova reserva
@@ -73,6 +131,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <BreadcrumbNavigation />
       {/* Cabeçalho com título e botões de ação */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">
@@ -102,13 +161,23 @@ export default function DashboardPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$45.231,89</div>
+            <div className="text-2xl font-bold">
+              {isLoading
+                ? "R$ 0,00"
+                : `R$ ${(dashboardMetrics?.totalRevenue || 0).toLocaleString(
+                    "pt-BR",
+                    {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    }
+                  )}`}
+            </div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon
                 className="mr-1 h-4 w-4 text-emerald-500"
                 aria-hidden="true"
               />
-              +20,1% em relação ao mês anterior
+              Receita total acumulada
             </p>
           </CardContent>
         </Card>
@@ -125,13 +194,21 @@ export default function DashboardPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">84,3%</div>
+            <div className="text-2xl font-bold">
+              {isLoading
+                ? "0%"
+                : `${Math.round(dashboardMetrics?.occupancyRate || 0)}%`}
+            </div>
             <p className="text-xs text-muted-foreground flex items-center">
               <ArrowUpIcon
                 className="mr-1 h-4 w-4 text-emerald-500"
                 aria-hidden="true"
               />
-              +4,3% em relação ao mês anterior
+              {isLoading
+                ? "0 de 0 quartos"
+                : `${dashboardMetrics?.occupiedRooms || 0} de ${
+                    dashboardMetrics?.totalRooms || 0
+                  } quartos`}
             </p>
           </CardContent>
         </Card>
@@ -148,18 +225,22 @@ export default function DashboardPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">24</div>
+            <div className="text-2xl font-bold">
+              {isLoading ? "0" : dashboardMetrics?.availableRooms || 0}
+            </div>
             <p className="text-xs text-muted-foreground">
-              De um total de 120 quartos
+              {isLoading
+                ? "De um total de 0 quartos"
+                : `De um total de ${dashboardMetrics?.totalRooms || 0} quartos`}
             </p>
           </CardContent>
         </Card>
 
-        {/* Card de Novas Reservas */}
+        {/* Card de Reservas Pendentes */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Novas Reservas
+              Reservas Pendentes
             </CardTitle>
             <CalendarIcon
               className="h-4 w-4 text-muted-foreground"
@@ -167,13 +248,11 @@ export default function DashboardPage() {
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">+12</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowDownIcon
-                className="mr-1 h-4 w-4 text-red-500"
-                aria-hidden="true"
-              />
-              -8% em relação a ontem
+            <div className="text-2xl font-bold">
+              {isLoading ? "0" : dashboardMetrics?.pendingBookings || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {isLoading ? "Aguardando confirmação" : "Aguardando confirmação"}
             </p>
           </CardContent>
         </Card>
@@ -200,7 +279,7 @@ export default function DashboardPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pl-2">
-                <OccupancyChart />
+                <OccupancyChart data={occupancyData} isLoading={isLoading} />
               </CardContent>
             </Card>
 
@@ -209,11 +288,11 @@ export default function DashboardPage() {
               <CardHeader>
                 <CardTitle>Receita</CardTitle>
                 <CardDescription>
-                  Detalhamento mensal de receita
+                  Receita semanal dos últimos 30 dias
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <RevenueChart />
+                <RevenueChart data={revenueData} isLoading={isLoading} />
               </CardContent>
             </Card>
           </div>
@@ -231,9 +310,9 @@ export default function DashboardPage() {
               <CardContent>
                 <div className="space-y-4">
                   {/* Iteração sobre o array de reservas recentes */}
-                  {recentBookings.map((booking) => (
+                  {recentBookings.map((booking, index) => (
                     <div
-                      key={booking.name}
+                      key={`${booking.name}-${booking.room}-${index}`}
                       className="flex items-center justify-between space-x-4"
                     >
                       {/* Informações do hóspede com avatar */}
@@ -321,42 +400,14 @@ export default function DashboardPage() {
           </div>
         </TabsContent>
 
-        {/* Conteúdo da aba Análises - ainda não implementado */}
+        {/* Conteúdo da aba Análises */}
         <TabsContent value="analises" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Conteúdo de Análises</CardTitle>
-              <CardDescription>
-                Análises detalhadas serão exibidas aqui
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] flex items-center justify-center border rounded-md">
-                <p className="text-muted-foreground">
-                  Gráficos e dados de análise serão exibidos aqui
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <AnalyticsTab />
         </TabsContent>
 
-        {/* Conteúdo da aba Relatórios - ainda não implementado */}
+        {/* Conteúdo da aba Relatórios */}
         <TabsContent value="relatorios" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Conteúdo de Relatórios</CardTitle>
-              <CardDescription>
-                Relatórios gerados serão exibidos aqui
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] flex items-center justify-center border rounded-md">
-                <p className="text-muted-foreground">
-                  Dados de relatórios e exportações serão exibidos aqui
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <ReportsTab />
         </TabsContent>
       </Tabs>
 

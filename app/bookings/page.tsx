@@ -42,6 +42,7 @@ import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { BookingDetailsDialog } from "@/components/bookings/booking-details-dialog";
 import { useSupabase } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
+import { bookingService } from "@/lib/services/booking-service";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -426,6 +427,60 @@ export default function BookingsPage() {
     setShowDetailsDialog(true);
   };
 
+  // Função para fazer check-in
+  const handleCheckIn = async (bookingId: string) => {
+    try {
+      const success = await bookingService.checkIn(bookingId);
+      if (success) {
+        // Recarregar dados
+        const { data: bookingsData } = await supabase
+          .from("bookings")
+          .select("*, guests(*), rooms(*)")
+          .order("check_in", { ascending: true });
+
+        if (bookingsData) {
+          const bookings = bookingsData.map(convertDbBookingToUIBooking);
+          setBookingData(bookings);
+        }
+
+        toast.success("Check-in realizado com sucesso!");
+        setShowDetailsDialog(false);
+      } else {
+        toast.error("Erro ao realizar check-in");
+      }
+    } catch (error) {
+      console.error("Erro ao fazer check-in:", error);
+      toast.error("Erro inesperado ao realizar check-in");
+    }
+  };
+
+  // Função para fazer check-out
+  const handleCheckOut = async (bookingId: string) => {
+    try {
+      const success = await bookingService.checkOut(bookingId);
+      if (success) {
+        // Recarregar dados
+        const { data: bookingsData } = await supabase
+          .from("bookings")
+          .select("*, guests(*), rooms(*)")
+          .order("check_in", { ascending: true });
+
+        if (bookingsData) {
+          const bookings = bookingsData.map(convertDbBookingToUIBooking);
+          setBookingData(bookings);
+        }
+
+        toast.success("Check-out realizado com sucesso!");
+        setShowDetailsDialog(false);
+      } else {
+        toast.error("Erro ao realizar check-out");
+      }
+    } catch (error) {
+      console.error("Erro ao fazer check-out:", error);
+      toast.error("Erro inesperado ao realizar check-out");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -639,6 +694,8 @@ export default function BookingsPage() {
           booking={selectedBooking}
           open={showDetailsDialog}
           onOpenChange={setShowDetailsDialog}
+          onCheckIn={handleCheckIn}
+          onCheckOut={handleCheckOut}
         />
       )}
     </div>
@@ -735,165 +792,3 @@ interface Booking {
   paymentStatus: string;
   paymentMethod: string;
 }
-
-/**
- * Dados de exemplo para exibição na tabela de reservas
- */
-const bookingData: Booking[] = [
-  {
-    id: "1",
-    guestName: "Ana Silva",
-    guestEmail: "ana.silva@email.com",
-    guestInitials: "AS",
-    room: "101",
-    roomType: "Padrão",
-    checkIn: "12/06/2023",
-    checkOut: "15/06/2023",
-    status: "Check-out Feito",
-    paymentStatus: "Pago",
-    paymentMethod: "Cartão de Crédito",
-  },
-  {
-    id: "2",
-    guestName: "Carlos Oliveira",
-    guestEmail: "carlos.oliveira@email.com",
-    guestInitials: "CO",
-    room: "205",
-    roomType: "Luxo",
-    checkIn: "14/06/2023",
-    checkOut: "20/06/2023",
-    status: "Check-out Feito",
-    paymentStatus: "Pago",
-    paymentMethod: "Dinheiro",
-  },
-  {
-    id: "3",
-    guestName: "Juliana Santos",
-    guestEmail: "juliana.santos@email.com",
-    guestInitials: "JS",
-    room: "302",
-    roomType: "Suíte",
-    checkIn: "18/06/2023",
-    checkOut: "22/06/2023",
-    status: "Check-out Feito",
-    paymentStatus: "Pago",
-    paymentMethod: "Cartão de Crédito",
-  },
-  {
-    id: "4",
-    guestName: "Marcos Pereira",
-    guestEmail: "marcos.pereira@email.com",
-    guestInitials: "MP",
-    room: "107",
-    roomType: "Padrão",
-    checkIn: "21/06/2023",
-    checkOut: "23/06/2023",
-    status: "Check-out Feito",
-    paymentStatus: "Pago",
-    paymentMethod: "PIX",
-  },
-  {
-    id: "5",
-    guestName: "Fernanda Costa",
-    guestEmail: "fernanda.costa@email.com",
-    guestInitials: "FC",
-    room: "208",
-    roomType: "Luxo",
-    checkIn: "15/06/2023",
-    checkOut: "20/06/2023",
-    status: "Check-in Feito",
-    paymentStatus: "Pago",
-    paymentMethod: "Cartão de Débito",
-  },
-  {
-    id: "6",
-    guestName: "Ricardo Almeida",
-    guestEmail: "ricardo.almeida@email.com",
-    guestInitials: "RA",
-    room: "304",
-    roomType: "Suíte",
-    checkIn: "18/06/2023",
-    checkOut: "25/06/2023",
-    status: "Check-in Feito",
-    paymentStatus: "Parcial",
-    paymentMethod: "Cartão de Crédito",
-  },
-  {
-    id: "7",
-    guestName: "Patricia Lima",
-    guestEmail: "patricia.lima@email.com",
-    guestInitials: "PL",
-    room: "102",
-    roomType: "Padrão",
-    checkIn: "22/06/2023",
-    checkOut: "24/06/2023",
-    status: "Reservado",
-    paymentStatus: "Depósito",
-    paymentMethod: "Transferência",
-  },
-  {
-    id: "8",
-    guestName: "Gabriel Martins",
-    guestEmail: "gabriel.martins@email.com",
-    guestInitials: "GM",
-    room: "201",
-    roomType: "Luxo",
-    checkIn: "23/06/2023",
-    checkOut: "30/06/2023",
-    status: "Reservado",
-    paymentStatus: "Não Pago",
-    paymentMethod: "Pendente",
-  },
-  {
-    id: "9",
-    guestName: "Carolina Souza",
-    guestEmail: "carolina.souza@email.com",
-    guestInitials: "CS",
-    room: "303",
-    roomType: "Suíte",
-    checkIn: "25/06/2023",
-    checkOut: "02/07/2023",
-    status: "Reservado",
-    paymentStatus: "Pago",
-    paymentMethod: "PIX",
-  },
-  {
-    id: "10",
-    guestName: "Lucas Ferreira",
-    guestEmail: "lucas.ferreira@email.com",
-    guestInitials: "LF",
-    room: "106",
-    roomType: "Padrão",
-    checkIn: "20/06/2023",
-    checkOut: "22/06/2023",
-    status: "Pendente",
-    paymentStatus: "Não Pago",
-    paymentMethod: "Pendente",
-  },
-  {
-    id: "11",
-    guestName: "Amanda Ribeiro",
-    guestEmail: "amanda.ribeiro@email.com",
-    guestInitials: "AR",
-    room: "204",
-    roomType: "Luxo",
-    checkIn: "19/06/2023",
-    checkOut: "26/06/2023",
-    status: "Cancelada",
-    paymentStatus: "Reembolsado",
-    paymentMethod: "Cartão de Crédito",
-  },
-  {
-    id: "12",
-    guestName: "Paulo Moreira",
-    guestEmail: "paulo.moreira@email.com",
-    guestInitials: "PM",
-    room: "301",
-    roomType: "Suíte",
-    checkIn: "24/06/2023",
-    checkOut: "27/06/2023",
-    status: "Cancelada",
-    paymentStatus: "Reembolsado",
-    paymentMethod: "PIX",
-  },
-];

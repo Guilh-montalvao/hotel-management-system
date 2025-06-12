@@ -44,6 +44,8 @@ import { format } from "date-fns";
 import { useSupabase } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { BreadcrumbNavigation } from "@/components/ui/breadcrumb-navigation";
+import { guestService } from "@/lib/services/guest-service";
 
 // Interface que define a estrutura de dados de um hóspede
 export interface Guest {
@@ -450,6 +452,7 @@ export default function GuestsPage() {
       value={{ handleEditGuest, handleViewGuestDetails }}
     >
       <div className="flex flex-col gap-4">
+        <BreadcrumbNavigation />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
             Gerenciamento de Hóspedes
@@ -467,6 +470,7 @@ export default function GuestsPage() {
               <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Recarregar Dados
             </Button>
+
             <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
               <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Adicionar Hóspede
