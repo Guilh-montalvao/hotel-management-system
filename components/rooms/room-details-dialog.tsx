@@ -9,7 +9,7 @@
  * de histórico de reservas.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,8 @@ import {
 } from "lucide-react";
 import { Room } from "@/lib/types";
 import { roomService } from "@/lib/services/room-service";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 /**
  * Interface para representar os dados de uma estadia/hospedagem
@@ -95,57 +97,80 @@ export function RoomDetailsDialog({
   // Estado para controlar a visibilidade do diálogo de confirmação de exclusão
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
+  // Estado para armazenar o histórico real de hospedagem
+  const [stayRecords, setStayRecords] = useState<StayRecord[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
   /**
-   * Dados fictícios para demonstração do histórico de hospedagem
-   * Em uma implementação real, esses dados viriam do banco de dados
+   * Efeito para carregar o histórico de hospedagem quando o quarto mudar
    */
-  const stayRecords: StayRecord[] = [
-    {
-      id: "RS0012345",
-      guestName: "Ricardo Oliveira",
-      checkIn: "15/04/2025",
-      checkOut: "20/04/2025",
-      status: "Ativo",
-      paymentStatus: "Parcial",
-      totalAmount: 750,
-    },
-    {
-      id: "RS0012344",
-      guestName: "Mariana Santos",
-      checkIn: "08/04/2025",
-      checkOut: "12/04/2025",
-      status: "Concluído",
-      paymentStatus: "Pago",
-      totalAmount: 600,
-    },
-    {
-      id: "RS0012343",
-      guestName: "Carlos Pereira",
-      checkIn: "01/04/2025",
-      checkOut: "05/04/2025",
-      status: "Concluído",
-      paymentStatus: "Pago",
-      totalAmount: 600,
-    },
-    {
-      id: "RS0012342",
-      guestName: "Ana Luiza Costa",
-      checkIn: "22/03/2025",
-      checkOut: "25/03/2025",
-      status: "Concluído",
-      paymentStatus: "Pago",
-      totalAmount: 450,
-    },
-    {
-      id: "RS0012340",
-      guestName: "Pedro Silveira",
-      checkIn: "15/03/2025",
-      checkOut: "20/03/2025",
-      status: "Cancelado",
-      paymentStatus: "Parcial",
-      totalAmount: 300,
-    },
-  ];
+  useEffect(() => {
+    const loadRoomHistory = async () => {
+      if (!room || !open) return;
+
+      setIsLoadingHistory(true);
+      try {
+        // Buscar histórico do quarto usando o roomService
+        const history = await roomService.getRoomHistory(room.id);
+
+        // Converter dados do banco para o formato da UI
+        const convertedHistory: StayRecord[] = history.map((booking: any) => {
+          // Mapear status do banco para status da UI
+          const getUIStatus = (dbStatus: string) => {
+            switch (dbStatus) {
+              case "Reservado":
+                return "Ativo";
+              case "Check-in Feito":
+                return "Ativo";
+              case "Check-out Feito":
+                return "Concluído";
+              case "Cancelada":
+                return "Cancelado";
+              default:
+                return "Ativo";
+            }
+          };
+
+          // Mapear status de pagamento
+          const getPaymentStatus = (paymentStatus: string) => {
+            switch (paymentStatus) {
+              case "Pago":
+                return "Pago";
+              case "Pendente":
+                return "Pendente";
+              case "Parcial":
+                return "Parcial";
+              default:
+                return "Pendente";
+            }
+          };
+
+          return {
+            id: booking.id,
+            guestName: booking.guests?.name || "Hóspede não encontrado",
+            checkIn: format(new Date(booking.check_in), "dd/MM/yyyy", {
+              locale: ptBR,
+            }),
+            checkOut: format(new Date(booking.check_out), "dd/MM/yyyy", {
+              locale: ptBR,
+            }),
+            status: getUIStatus(booking.status),
+            paymentStatus: getPaymentStatus(booking.payment_status),
+            totalAmount: booking.total_amount || 0,
+          };
+        });
+
+        setStayRecords(convertedHistory);
+      } catch (error) {
+        console.error("Erro ao carregar histórico do quarto:", error);
+        setStayRecords([]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadRoomHistory();
+  }, [room, open]);
 
   /**
    * Função para atualizar o status do quarto
@@ -315,62 +340,78 @@ export function RoomDetailsDialog({
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {/* Mapeia os registros de hospedagem para exibição */}
-                    {stayRecords.map((record) => (
-                      <div key={record.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between">
-                          {/* Informações do hóspede */}
-                          <div className="flex items-center gap-2">
-                            <User className="h-5 w-5 text-muted-foreground" />
-                            <span className="font-medium">
-                              {record.guestName}
-                            </span>
-                          </div>
-                          {/* Badge de status com cores contextuais */}
-                          <Badge
-                            variant="outline"
-                            className={
-                              record.status === "Ativo"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
-                                : record.status === "Concluído"
-                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300"
-                                : "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
-                            }
-                          >
-                            {record.status}
-                          </Badge>
-                        </div>
-                        {/* Grid com detalhes da hospedagem */}
-                        <div className="grid grid-cols-2 gap-2 mt-3">
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              Check-in: {record.checkIn}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              Check-out: {record.checkOut}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              {record.paymentStatus} - R${record.totalAmount}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">
-                              {record.status === "Ativo"
-                                ? "Em andamento"
-                                : "Finalizado"}
-                            </span>
-                          </div>
+                    {/* Estado de carregamento */}
+                    {isLoadingHistory ? (
+                      <div className="flex items-center justify-center p-8">
+                        <div className="text-muted-foreground">
+                          Carregando histórico...
                         </div>
                       </div>
-                    ))}
+                    ) : stayRecords.length === 0 ? (
+                      /* Mensagem quando não há histórico */
+                      <div className="flex items-center justify-center p-8">
+                        <div className="text-muted-foreground">
+                          Nenhuma hospedagem registrada para este quarto
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mapeia os registros de hospedagem para exibição */
+                      stayRecords.map((record) => (
+                        <div key={record.id} className="border rounded-lg p-4">
+                          <div className="flex justify-between">
+                            {/* Informações do hóspede */}
+                            <div className="flex items-center gap-2">
+                              <User className="h-5 w-5 text-muted-foreground" />
+                              <span className="font-medium">
+                                {record.guestName}
+                              </span>
+                            </div>
+                            {/* Badge de status com cores contextuais */}
+                            <Badge
+                              variant="outline"
+                              className={
+                                record.status === "Ativo"
+                                  ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+                                  : record.status === "Concluído"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300"
+                                  : "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300"
+                              }
+                            >
+                              {record.status}
+                            </Badge>
+                          </div>
+                          {/* Grid com detalhes da hospedagem */}
+                          <div className="grid grid-cols-2 gap-2 mt-3">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                Check-in: {record.checkIn}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                Check-out: {record.checkOut}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <CreditCard className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                {record.paymentStatus} - R${record.totalAmount}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Clock className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-muted-foreground">
+                                {record.status === "Ativo"
+                                  ? "Em andamento"
+                                  : "Finalizado"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>

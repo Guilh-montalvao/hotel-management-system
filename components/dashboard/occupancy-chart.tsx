@@ -10,29 +10,40 @@ import {
   YAxis,
 } from "@/components/ui/chart";
 
-/**
- * Dados de exemplo para o gráfico de ocupação
- * Contém informações de taxa de ocupação por data
- */
-const data = [
-  { name: "01 Mar", value: 78 },
-  { name: "05 Mar", value: 82 },
-  { name: "10 Mar", value: 87 },
-  { name: "15 Mar", value: 89 },
-  { name: "20 Mar", value: 84 },
-  { name: "25 Mar", value: 83 },
-  { name: "30 Mar", value: 84 },
-];
+interface OccupancyChartProps {
+  data: any[];
+  isLoading: boolean;
+}
 
 /**
  * Componente de gráfico de área para visualização da taxa de ocupação
  * Exibe a evolução da ocupação dos quartos ao longo do tempo
  */
-export function OccupancyChart() {
+export function OccupancyChart({ data, isLoading }: OccupancyChartProps) {
+  // Dados de fallback caso não haja dados reais
+  const fallbackData = [
+    { day: "Seg", occupancyRate: 0 },
+    { day: "Ter", occupancyRate: 0 },
+    { day: "Qua", occupancyRate: 0 },
+    { day: "Qui", occupancyRate: 0 },
+    { day: "Sex", occupancyRate: 0 },
+    { day: "Sáb", occupancyRate: 0 },
+    { day: "Dom", occupancyRate: 0 },
+  ];
+
+  const chartData = data && data.length > 0 ? data : fallbackData;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[300px] items-center justify-center">
+        <div className="text-muted-foreground">Carregando dados...</div>
+      </div>
+    );
+  }
   return (
     <ResponsiveContainer width="100%" height={300}>
       <AreaChart
-        data={data}
+        data={chartData}
         margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
       >
         {/* Definição do gradiente para preenchimento do gráfico */}
@@ -52,7 +63,7 @@ export function OccupancyChart() {
         </defs>
         {/* Eixo X com as datas */}
         <XAxis
-          dataKey="name"
+          dataKey="day"
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
           tickLine={false}
@@ -84,14 +95,19 @@ export function OccupancyChart() {
                         Data
                       </span>
                       <span className="font-bold text-muted-foreground">
-                        {payload[0].payload.name}
+                        {payload[0].payload.day}
                       </span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[0.70rem] uppercase text-muted-foreground">
                         Ocupação
                       </span>
-                      <span className="font-bold">{payload[0].value}%</span>
+                      <span className="font-bold">
+                        {typeof payload[0].value === "number"
+                          ? payload[0].value.toFixed(1)
+                          : payload[0].value}
+                        %
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -103,7 +119,7 @@ export function OccupancyChart() {
         {/* Área preenchida representando a taxa de ocupação */}
         <Area
           type="monotone"
-          dataKey="value"
+          dataKey="occupancyRate"
           stroke="hsl(var(--primary))"
           fillOpacity={1}
           fill="url(#colorValue)"

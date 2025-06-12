@@ -10,36 +10,48 @@ import {
   YAxis,
 } from "@/components/ui/chart";
 
-/**
- * Dados de exemplo para o gráfico de receitas
- * Contém informações de receitas e despesas mensais
- */
-const data = [
-  { name: "Jan", revenue: 32000, expenses: 21000 },
-  { name: "Fev", revenue: 38000, expenses: 24000 },
-  { name: "Mar", revenue: 45000, expenses: 28000 },
-  { name: "Abr", revenue: 40000, expenses: 25000 },
-  { name: "Mai", revenue: 42000, expenses: 27000 },
-  { name: "Jun", revenue: 48000, expenses: 30000 },
-];
+interface RevenueChartProps {
+  data: any[];
+  isLoading: boolean;
+}
 
 /**
  * Componente de gráfico de barras para visualização de receitas
- * Exibe a receita e despesas em um comparativo mensal
+ * Exibe a receita semanal dos últimos 30 dias
  */
-export function RevenueChart() {
+export function RevenueChart({ data, isLoading }: RevenueChartProps) {
+  // Dados de fallback caso não haja dados reais
+  const fallbackData = [
+    { week: "Sem 1", revenue: 0 },
+    { week: "Sem 2", revenue: 0 },
+    { week: "Sem 3", revenue: 0 },
+    { week: "Sem 4", revenue: 0 },
+  ];
+
+  const chartData = data && data.length > 0 ? data : fallbackData;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[300px] items-center justify-center">
+        <div className="text-muted-foreground">Carregando dados...</div>
+      </div>
+    );
+  }
   return (
     <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+      <BarChart
+        data={chartData}
+        margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+      >
         {/* Grade de fundo do gráfico */}
         <CartesianGrid
           strokeDasharray="3 3"
           vertical={false}
           stroke="hsl(var(--border))"
         />
-        {/* Eixo X com os nomes dos meses */}
+        {/* Eixo X com os nomes das semanas */}
         <XAxis
-          dataKey="name"
+          dataKey="week"
           stroke="hsl(var(--muted-foreground))"
           fontSize={12}
           tickLine={false}
@@ -65,7 +77,7 @@ export function RevenueChart() {
                         Mês
                       </span>
                       <span className="font-bold text-muted-foreground">
-                        {payload[0].payload.name}
+                        {payload[0]?.payload?.week || "N/A"}
                       </span>
                     </div>
                     <div className="flex flex-col">
@@ -73,15 +85,13 @@ export function RevenueChart() {
                         Receita
                       </span>
                       <span className="font-bold">
-                        R${payload[0].value.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex flex-col col-span-2">
-                      <span className="text-[0.70rem] uppercase text-muted-foreground">
-                        Despesas
-                      </span>
-                      <span className="font-bold">
-                        R${payload[1].value.toLocaleString()}
+                        R${" "}
+                        {typeof payload[0]?.value === "number"
+                          ? payload[0].value.toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                          : "0,00"}
                       </span>
                     </div>
                   </div>
@@ -91,15 +101,10 @@ export function RevenueChart() {
             return null;
           }}
         />
-        {/* Barras representando receitas e despesas */}
+        {/* Barras representando receitas */}
         <Bar
           dataKey="revenue"
           fill="hsl(var(--primary))"
-          radius={[4, 4, 0, 0]}
-        />
-        <Bar
-          dataKey="expenses"
-          fill="hsl(var(--muted))"
           radius={[4, 4, 0, 0]}
         />
       </BarChart>

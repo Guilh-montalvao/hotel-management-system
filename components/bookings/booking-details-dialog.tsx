@@ -39,12 +39,16 @@ interface BookingDetailsDialogProps {
   booking: any;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCheckIn?: (bookingId: string) => void;
+  onCheckOut?: (bookingId: string) => void;
 }
 
 export function BookingDetailsDialog({
   booking,
   open,
   onOpenChange,
+  onCheckIn,
+  onCheckOut,
 }: BookingDetailsDialogProps) {
   if (!booking) return null;
 
@@ -203,19 +207,19 @@ export function BookingDetailsDialog({
           </Button>
           <div className="flex space-x-2">
             {/* Botões condicionais baseados no status */}
-            {booking.status === "Reservado" && (
-              <Button variant="default">
+            {booking.status === "Reservado" && onCheckIn && (
+              <Button variant="default" onClick={() => onCheckIn(booking.id)}>
                 <CheckIcon className="mr-2 h-4 w-4" />
                 Fazer Check-in
               </Button>
             )}
-            {booking.status === "Check-in Feito" && (
-              <Button variant="default">
+            {booking.status === "Check-in Feito" && onCheckOut && (
+              <Button variant="default" onClick={() => onCheckOut(booking.id)}>
                 <XIcon className="mr-2 h-4 w-4" />
                 Fazer Check-out
               </Button>
             )}
-            <Button>Editar Reserva</Button>
+            <Button variant="outline">Editar Reserva</Button>
           </div>
         </DialogFooter>
       </DialogContent>
