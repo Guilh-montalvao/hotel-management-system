@@ -23,6 +23,8 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { PDFService } from "@/lib/services/pdf-service";
+import { supabase } from "@/lib/supabase";
 
 interface ReportTemplate {
   id: string;
@@ -126,15 +128,95 @@ export function ReportsTab() {
     setGeneratingReports((prev) => [...prev, `${reportId}-${format}`]);
 
     try {
-      // Simular geração de relatório
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      toast.info("Gerando relatório... Por favor, aguarde.");
 
-      toast.success(`Relatório gerado com sucesso! Download iniciado.`);
+      // Buscar dados do banco conforme o tipo de relatório
+      let data: any[] = [];
 
-      // Em um sistema real, aqui seria feito o download do arquivo
-      console.log(`Gerando relatório ${reportId} em formato ${format}`);
+      switch (reportId) {
+        case "guest-analytics":
+          const { data: guests } = await supabase
+            .from("guests")
+            .select("*")
+            .order("created_at", { ascending: false });
+
+          if (format === "pdf") {
+            PDFService.generateGuestsReport(guests || []);
+          }
+          break;
+
+        case "occupancy-report":
+          const [roomsResult, bookingsResult] = await Promise.all([
+            supabase.from("rooms").select("*").order("number"),
+            supabase
+              .from("bookings")
+              .select("*, guests(*), rooms(*)")
+              .order("check_in", { ascending: false }),
+          ]);
+
+          if (format === "pdf") {
+            PDFService.generateOccupancyReport(
+              roomsResult.data || [],
+              bookingsResult.data || []
+            );
+          }
+          break;
+
+        case "financial-summary":
+          const { data: payments } = await supabase
+            .from("payments")
+            .select("*, bookings(*, guests(*))")
+            .order("created_at", { ascending: false });
+
+          if (format === "pdf") {
+            PDFService.generateFinancialReport(payments || []);
+          }
+          break;
+
+        case "daily-operations":
+          const { data: bookings } = await supabase
+            .from("bookings")
+            .select("*, guests(*), rooms(*)")
+            .order("check_in", { ascending: false });
+
+          if (format === "pdf") {
+            PDFService.generateBookingsReport(bookings || []);
+          }
+          break;
+
+        case "revenue-trends":
+          const { data: paymentsData } = await supabase
+            .from("payments")
+            .select("*, bookings(*, guests(*))")
+            .order("created_at", { ascending: false });
+
+          if (format === "pdf") {
+            PDFService.generateFinancialReport(paymentsData || []);
+          }
+          break;
+
+        default:
+          // Para relatórios personalizados, gerar um relatório geral
+          const [guestsData, roomsData, bookingsData] = await Promise.all([
+            supabase.from("guests").select("*"),
+            supabase.from("rooms").select("*"),
+            supabase.from("bookings").select("*, guests(*), rooms(*)"),
+          ]);
+
+          if (format === "pdf") {
+            PDFService.generateGuestsReport(guestsData.data || []);
+          }
+          break;
+      }
+
+      toast.success(
+        `Relatório ${format.toUpperCase()} gerado com sucesso! Download iniciado.`
+      );
     } catch (error) {
-      toast.error("Erro ao gerar relatório. Tente novamente.");
+      console.error("Erro ao gerar relatório:", error);
+      toast.error(
+        "Erro ao gerar relatório. Verifique sua conexão e tente novamente."
+      );
     } finally {
       setGeneratingReports((prev) =>
         prev.filter((id) => id !== `${reportId}-${format}`)
