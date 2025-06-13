@@ -50,11 +50,6 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PDFService } from "@/lib/services/pdf-service";
 import { FileTextIcon } from "lucide-react";
 import {
-  AdvancedFilters,
-  FilterConfig,
-  FilterValue,
-} from "@/components/ui/advanced-filters";
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -203,60 +198,12 @@ export default function GuestsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [advancedFilters, setAdvancedFilters] = useState<FilterValue>({});
 
   // Hook de paginação
   const pagination = usePagination({
     data: filteredGuests,
     itemsPerPage: itemsPerPage,
   });
-
-  // Configuração dos filtros avançados
-  const filterConfigs: FilterConfig[] = [
-    {
-      key: "name",
-      label: "Nome",
-      type: "text",
-      placeholder: "Buscar por nome...",
-    },
-    {
-      key: "email",
-      label: "Email",
-      type: "text",
-      placeholder: "Buscar por email...",
-    },
-    {
-      key: "status",
-      label: "Status",
-      type: "select",
-      options: [
-        { value: "Hospedado", label: "Hospedado" },
-        { value: "Reservado", label: "Reservado" },
-        { value: "Sem estadia", label: "Sem estadia" },
-      ],
-    },
-    {
-      key: "gender",
-      label: "Gênero",
-      type: "select",
-      options: [
-        { value: "Masculino", label: "Masculino" },
-        { value: "Feminino", label: "Feminino" },
-        { value: "Outro", label: "Outro" },
-      ],
-    },
-    {
-      key: "birthDateRange",
-      label: "Período de Nascimento",
-      type: "dateRange",
-    },
-    {
-      key: "cpf",
-      label: "CPF",
-      type: "text",
-      placeholder: "000.000.000-00",
-    },
-  ];
 
   // Carregar dados do Supabase quando o componente montar
   useEffect(() => {
@@ -270,7 +217,7 @@ export default function GuestsPage() {
     }
   }, [dbGuests]);
 
-  // Função para filtrar hóspedes com base na pesquisa, filtro de status, aba atual e filtros avançados
+  // Função para filtrar hóspedes com base na pesquisa, filtro de status, aba atual
   useEffect(() => {
     // Aplicando os filtros
     let results = [...guestData];
@@ -317,66 +264,13 @@ export default function GuestsPage() {
       );
     }
 
-    // Aplicar filtros avançados
-    Object.keys(advancedFilters).forEach((key) => {
-      const value = advancedFilters[key];
-      if (!value) return;
-
-      switch (key) {
-        case "name":
-          if (value.trim()) {
-            results = results.filter((guest) =>
-              guest.name.toLowerCase().includes(value.toLowerCase())
-            );
-          }
-          break;
-        case "email":
-          if (value.trim()) {
-            results = results.filter((guest) =>
-              guest.email.toLowerCase().includes(value.toLowerCase())
-            );
-          }
-          break;
-        case "status":
-          results = results.filter((guest) => guest.status === value);
-          break;
-        case "gender":
-          results = results.filter((guest) => guest.genero === value);
-          break;
-        case "cpf":
-          if (value.trim()) {
-            results = results.filter((guest) =>
-              guest.cpf?.toLowerCase().includes(value.toLowerCase())
-            );
-          }
-          break;
-        case "birthDateRange":
-          if (value.from || value.to) {
-            results = results.filter((guest) => {
-              if (!guest.birthDate) return false;
-              const guestDate = new Date(
-                guest.birthDate.split("/").reverse().join("-")
-              );
-              const fromDate = value.from ? new Date(value.from) : null;
-              const toDate = value.to ? new Date(value.to) : null;
-
-              if (fromDate && guestDate < fromDate) return false;
-              if (toDate && guestDate > toDate) return false;
-              return true;
-            });
-          }
-          break;
-      }
-    });
-
     setFilteredGuests(results);
-  }, [searchQuery, statusFilter, currentTab, guestData, advancedFilters]);
+  }, [searchQuery, statusFilter, currentTab, guestData]);
 
   // Função para limpar filtros
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
-    setAdvancedFilters({});
   };
 
   // Função para atualizar os filtros manualmente
@@ -601,10 +495,6 @@ export default function GuestsPage() {
             Gerenciamento de Hóspedes
           </h1>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-              Filtrar
-            </Button>
             <Button variant="outline" size="sm" onClick={clearFilters}>
               <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Limpar Filtros
@@ -756,16 +646,6 @@ export default function GuestsPage() {
                 <TabsTrigger value="recent">Reservados</TabsTrigger>
               </TabsList>
 
-              {/* Filtros Avançados */}
-              <div className="mb-4">
-                <AdvancedFilters
-                  filters={filterConfigs}
-                  values={advancedFilters}
-                  onChange={setAdvancedFilters}
-                  onClear={() => setAdvancedFilters({})}
-                />
-              </div>
-
               {pagination.totalItems > 0 ? (
                 <TabsContent value={currentTab} className="space-y-4">
                   <Table>
@@ -786,7 +666,6 @@ export default function GuestsPage() {
                     </TableBody>
                   </Table>
 
-                  {/* Controles de paginação */}
                   {pagination.totalPages > 1 && (
                     <div className="mt-4">
                       <PaginationControls

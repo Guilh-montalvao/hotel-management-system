@@ -499,10 +499,6 @@ export default function BookingsPage() {
           Reservas & Hospedagens
         </h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            Filtrar
-          </Button>
           <Button variant="outline" size="sm" onClick={clearFilters}>
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros

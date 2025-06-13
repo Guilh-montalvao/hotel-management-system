@@ -48,6 +48,8 @@ import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PDFService } from "@/lib/services/pdf-service";
 import { FileTextIcon } from "lucide-react";
+import { PaymentProcessDialog } from "@/components/payments/payment-process-dialog";
+import { CreateInvoiceDialog } from "@/components/payments/create-invoice-dialog";
 
 /**
  * Página de gerenciamento de pagamentos
@@ -63,6 +65,11 @@ export default function PaymentsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Estados para diálogos
+  const [showProcessDialog, setShowProcessDialog] = useState(false);
+  const [showCreateInvoiceDialog, setShowCreateInvoiceDialog] = useState(false);
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
+
   // Hook de paginação
   const pagination = usePagination({
     data: filteredTransactions,
@@ -71,40 +78,40 @@ export default function PaymentsPage() {
 
   // Buscar dados reais dos pagamentos
   useEffect(() => {
-    const fetchPaymentData = async () => {
-      try {
-        setIsLoading(true);
-
-        // Buscar pagamentos e reservas pendentes
-        const paymentsData = await paymentService.getAllTransactions();
-
-        // Buscar métricas
-        const metricsData = await paymentService.getPaymentMetrics();
-
-        setPayments(paymentsData);
-        setPaymentMetrics(metricsData);
-        setFilteredTransactions(paymentsData);
-      } catch (error) {
-        console.error("Erro ao buscar dados de pagamentos:", error);
-        toast.error("Erro ao carregar dados de pagamentos");
-        // Fallback para dados vazios se não conseguir buscar
-        setPayments([]);
-        setPaymentMetrics({
-          totalRevenue: 0,
-          pendingPayments: 0,
-          todayTransactions: 0,
-          monthlyTransactions: 0,
-          revenueGrowth: 0,
-          pendingGrowth: 0,
-        });
-        setFilteredTransactions([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchPaymentData();
   }, []);
+
+  const fetchPaymentData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Buscar pagamentos e reservas pendentes
+      const paymentsData = await paymentService.getAllTransactions();
+
+      // Buscar métricas
+      const metricsData = await paymentService.getPaymentMetrics();
+
+      setPayments(paymentsData);
+      setPaymentMetrics(metricsData);
+      setFilteredTransactions(paymentsData);
+    } catch (error) {
+      console.error("Erro ao buscar dados de pagamentos:", error);
+      toast.error("Erro ao carregar dados de pagamentos");
+      // Fallback para dados vazios se não conseguir buscar
+      setPayments([]);
+      setPaymentMetrics({
+        totalRevenue: 0,
+        pendingPayments: 0,
+        todayTransactions: 0,
+        monthlyTransactions: 0,
+        revenueGrowth: 0,
+        pendingGrowth: 0,
+      });
+      setFilteredTransactions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Função para filtrar transações com base na pesquisa, filtro de status e aba atual
   useEffect(() => {
@@ -184,6 +191,44 @@ export default function PaymentsPage() {
     setCurrentTab(value);
   };
 
+  // Função para abrir o diálogo de processamento com a transação selecionada
+  const openProcessDialog = (transaction: any) => {
+    setSelectedTransaction(transaction);
+    setShowProcessDialog(true);
+  };
+
+  // Função para abrir o diálogo de criação de fatura
+  const openCreateInvoiceDialog = () => {
+    setShowCreateInvoiceDialog(true);
+  };
+
+  // Handler quando o processamento for concluído
+  const handleProcessComplete = () => {
+    fetchPaymentData(); // Recarregar dados
+    toast.success("Pagamento atualizado com sucesso!");
+  };
+
+  // Handler quando a criação de fatura for concluída
+  const handleCreateInvoiceComplete = () => {
+    fetchPaymentData(); // Recarregar dados
+    toast.success("Fatura criada com sucesso!");
+  };
+
+  // Função para gerar um relatório PDF
+  const handleGeneratePdf = async () => {
+    try {
+      if (payments && payments.length > 0) {
+        PDFService.generateFinancialReport(payments);
+        toast.success("Relatório PDF financeiro gerado com sucesso!");
+      } else {
+        toast.error("Nenhuma transação encontrada para gerar relatório");
+      }
+    } catch (error) {
+      console.error("Erro ao gerar relatório:", error);
+      toast.error("Erro ao gerar relatório");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -191,37 +236,15 @@ export default function PaymentsPage() {
           Pagamentos & Faturamento
         </h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <FilterIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-            Filtrar
-          </Button>
           <Button variant="outline" size="sm" onClick={clearFilters}>
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={async () => {
-              try {
-                if (payments && payments.length > 0) {
-                  PDFService.generateFinancialReport(payments);
-                  toast.success("Relatório PDF financeiro gerado com sucesso!");
-                } else {
-                  toast.error(
-                    "Nenhuma transação encontrada para gerar relatório"
-                  );
-                }
-              } catch (error) {
-                console.error("Erro ao gerar relatório:", error);
-                toast.error("Erro ao gerar relatório");
-              }
-            }}
-          >
+          <Button variant="outline" size="sm" onClick={handleGeneratePdf}>
             <FileTextIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Gerar PDF
           </Button>
-          <Button size="sm">
+          <Button size="sm" onClick={openCreateInvoiceDialog}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Nova Fatura
           </Button>
@@ -249,16 +272,21 @@ export default function PaymentsPage() {
                     }
                   )}`}
             </div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowUpIcon
-                className="mr-1 h-4 w-4 text-emerald-500"
-                aria-hidden="true"
-              />
-              {isLoading
-                ? "0.0% em relação ao mês anterior"
-                : `${
-                    paymentMetrics?.revenueGrowth?.toFixed(1) || 0
-                  }% em relação ao mês anterior`}
+            <p className="text-xs text-muted-foreground">
+              {paymentMetrics?.revenueGrowth > 0 ? (
+                <span className="flex items-center text-emerald-600">
+                  <ArrowUpIcon className="mr-1 h-3 w-3" aria-hidden="true" />+
+                  {paymentMetrics?.revenueGrowth.toFixed(1)}%
+                </span>
+              ) : paymentMetrics?.revenueGrowth < 0 ? (
+                <span className="flex items-center text-red-600">
+                  <ArrowDownIcon className="mr-1 h-3 w-3" aria-hidden="true" />
+                  {paymentMetrics?.revenueGrowth.toFixed(1)}%
+                </span>
+              ) : (
+                "Estável"
+              )}
+              {" desde o mês passado"}
             </p>
           </CardContent>
         </Card>
@@ -285,15 +313,28 @@ export default function PaymentsPage() {
                   )}`}
             </div>
             <p className="text-xs text-muted-foreground">
-              {isLoading
-                ? "0.0% em relação à semana anterior"
-                : "Aguardando pagamento"}
+              {paymentMetrics?.pendingGrowth > 0 ? (
+                <span className="flex items-center text-amber-600">
+                  <ArrowUpIcon className="mr-1 h-3 w-3" aria-hidden="true" />+
+                  {paymentMetrics?.pendingGrowth.toFixed(1)}%
+                </span>
+              ) : paymentMetrics?.pendingGrowth < 0 ? (
+                <span className="flex items-center text-emerald-600">
+                  <ArrowDownIcon className="mr-1 h-3 w-3" aria-hidden="true" />
+                  {paymentMetrics?.pendingGrowth.toFixed(1)}%
+                </span>
+              ) : (
+                "Estável"
+              )}
+              {" desde o mês passado"}
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Transações</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Transações Hoje
+            </CardTitle>
             <CreditCardIcon
               className="h-4 w-4 text-muted-foreground"
               aria-hidden="true"
@@ -304,28 +345,26 @@ export default function PaymentsPage() {
               {isLoading ? "0" : paymentMetrics?.todayTransactions || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              {isLoading ? "Neste mês" : "Neste mês"}
+              Transações nas últimas 24h
             </p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Transação Média
+              Transações do Mês
             </CardTitle>
-            <DollarSignIcon
+            <CreditCardIcon
               className="h-4 w-4 text-muted-foreground"
               aria-hidden="true"
             />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">R$189,43</div>
-            <p className="text-xs text-muted-foreground flex items-center">
-              <ArrowUpIcon
-                className="mr-1 h-4 w-4 text-emerald-500"
-                aria-hidden="true"
-              />
-              +2.5% em relação ao mês anterior
+            <div className="text-2xl font-bold">
+              {isLoading ? "0" : paymentMetrics?.monthlyTransactions || 0}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Transações no mês atual
             </p>
           </CardContent>
         </Card>
@@ -335,9 +374,9 @@ export default function PaymentsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Transações de Pagamento</CardTitle>
+              <CardTitle>Transações</CardTitle>
               <CardDescription>
-                Visualize e gerencie todas as transações de pagamento
+                Gerencie todas as transações financeiras do hotel.
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -364,16 +403,20 @@ export default function PaymentsPage() {
                   </Button>
                 )}
               </div>
-              <Select value={statusFilter} onValueChange={handleStatusChange}>
+              <Select
+                value={statusFilter}
+                onValueChange={handleStatusChange}
+                defaultValue="all"
+              >
                 <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filtrar por status" />
+                  <SelectValue placeholder="Todos os Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas as Transações</SelectItem>
-                  <SelectItem value="completed">Concluídas</SelectItem>
+                  <SelectItem value="all">Todos os Status</SelectItem>
+                  <SelectItem value="completed">Aprovados</SelectItem>
                   <SelectItem value="pending">Pendentes</SelectItem>
-                  <SelectItem value="failed">Falhas</SelectItem>
-                  <SelectItem value="refunded">Reembolsadas</SelectItem>
+                  <SelectItem value="failed">Rejeitados</SelectItem>
+                  <SelectItem value="refunded">Estornados</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -382,24 +425,31 @@ export default function PaymentsPage() {
         <CardContent>
           <Tabs
             defaultValue="all"
-            className="space-y-4"
+            value={currentTab}
             onValueChange={handleTabChange}
           >
-            <TabsList>
-              <TabsTrigger value="all">Todas as Transações</TabsTrigger>
-              <TabsTrigger value="recent">Recentes</TabsTrigger>
+            <TabsList className="mb-4">
+              <TabsTrigger value="all">Todas as transações</TabsTrigger>
               <TabsTrigger value="pending">Pendentes</TabsTrigger>
-              <TabsTrigger value="refunds">Reembolsos</TabsTrigger>
+              <TabsTrigger value="refunds">Estornos</TabsTrigger>
             </TabsList>
 
-            {pagination.totalItems > 0 ? (
+            {isLoading ? (
+              <div className="flex h-48 items-center justify-center">
+                <div className="text-center">
+                  <div className="text-lg font-medium">Carregando dados...</div>
+                  <p className="text-sm text-muted-foreground">
+                    Buscando transações e pagamentos
+                  </p>
+                </div>
+              </div>
+            ) : filteredTransactions.length > 0 ? (
               <TabsContent value={currentTab} className="space-y-4">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID da Transação</TableHead>
+                      <TableHead className="w-[120px]">ID / Data</TableHead>
                       <TableHead>Hóspede</TableHead>
-                      <TableHead>Data</TableHead>
                       <TableHead>Valor</TableHead>
                       <TableHead>Método</TableHead>
                       <TableHead>Status</TableHead>
@@ -411,12 +461,12 @@ export default function PaymentsPage() {
                       <TransactionRow
                         key={transaction.id}
                         transaction={transaction}
+                        onProcess={openProcessDialog}
                       />
                     ))}
                   </TableBody>
                 </Table>
 
-                {/* Controles de paginação */}
                 {pagination.totalPages > 1 && (
                   <div className="mt-4">
                     <PaginationControls
@@ -448,34 +498,52 @@ export default function PaymentsPage() {
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Diálogos */}
+      {showProcessDialog && (
+        <PaymentProcessDialog
+          open={showProcessDialog}
+          onOpenChange={setShowProcessDialog}
+          transaction={selectedTransaction}
+          onProcessComplete={handleProcessComplete}
+        />
+      )}
+
+      <CreateInvoiceDialog
+        open={showCreateInvoiceDialog}
+        onOpenChange={setShowCreateInvoiceDialog}
+        onCreateComplete={handleCreateInvoiceComplete}
+      />
     </div>
   );
 }
 
-/**
- * Componente que renderiza uma linha da tabela de transações
- * @param transaction - Dados da transação a ser exibida
- */
-function TransactionRow({ transaction }: { transaction: any }) {
-  // Gerar iniciais do nome do hóspede
+function TransactionRow({
+  transaction,
+  onProcess,
+}: {
+  transaction: any;
+  onProcess: (transaction: any) => void;
+}) {
+  // Função para obter as iniciais do nome
   const getInitials = (name: string) => {
-    if (!name) return "N/A";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+    if (!name) return "??";
+    const parts = name.split(" ");
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (
+      (parts[0] ? parts[0][0] : "") +
+      (parts[parts.length - 1] ? parts[parts.length - 1][0] : "")
+    ).toUpperCase();
   };
 
-  // Para reservas pendentes, os dados estão diretamente no bookings
-  const guestName = transaction.is_pending_booking
-    ? transaction.bookings?.guests?.name || "Hóspede não identificado"
-    : transaction.bookings?.guests?.name || "Hóspede não identificado";
-
-  const formattedDate = transaction.payment_date
-    ? format(new Date(transaction.payment_date), "dd/MM/yyyy")
-    : format(new Date(transaction.created_at), "dd/MM/yyyy");
+  // Função para formatar data
+  const formatDate = (dateStr: string) => {
+    try {
+      return format(new Date(dateStr), "dd/MM/yyyy");
+    } catch (error) {
+      return "Data inválida";
+    }
+  };
 
   // ID da transação: usar formato mais legível baseado no tipo
   const transactionId = transaction.is_pending_booking
@@ -484,22 +552,37 @@ function TransactionRow({ transaction }: { transaction: any }) {
 
   return (
     <TableRow>
-      <TableCell className="font-medium">#{transactionId}</TableCell>
+      <TableCell className="font-medium">
+        <div className="font-mono text-xs">#{transactionId}</div>
+        <div className="text-xs text-muted-foreground">
+          {transaction.created_at
+            ? formatDate(transaction.created_at)
+            : "Sem data"}
+        </div>
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">
-            <AvatarFallback>{getInitials(guestName)}</AvatarFallback>
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+              {transaction.bookings?.guests?.name
+                ? getInitials(transaction.bookings.guests.name)
+                : "??"}
+            </AvatarFallback>
           </Avatar>
-          <div className="font-medium">{guestName}</div>
+          <div>
+            <div className="font-medium">
+              {transaction.bookings?.guests?.name || "Hóspede não encontrado"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {transaction.bookings?.rooms?.number
+                ? `Quarto ${transaction.bookings.rooms.number}`
+                : "Quarto não especificado"}
+            </div>
+          </div>
         </div>
       </TableCell>
-      <TableCell>{formattedDate}</TableCell>
       <TableCell className="font-medium">
-        R${" "}
-        {(transaction.amount || 0).toLocaleString("pt-BR", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}
+        R$ {transaction.amount?.toFixed(2) || "0,00"}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -507,7 +590,7 @@ function TransactionRow({ transaction }: { transaction: any }) {
             className="h-4 w-4 text-muted-foreground"
             aria-hidden="true"
           />
-          {transaction.method || "Pendente"}
+          {transaction.method || "Não especificado"}
         </div>
       </TableCell>
       <TableCell>
@@ -532,13 +615,38 @@ function TransactionRow({ transaction }: { transaction: any }) {
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-2">
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onProcess(transaction)}
+          >
             Visualizar
           </Button>
-          {transaction.status === "Pendente" ? (
-            <Button size="sm">Processar</Button>
+          {transaction.status === "Pendente" ||
+          transaction.status === "Processando" ? (
+            <Button size="sm" onClick={() => onProcess(transaction)}>
+              Processar
+            </Button>
           ) : (
-            <Button size="sm">Imprimir</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Gerar o PDF de apenas este pagamento
+                try {
+                  const transactionForPdf = {
+                    ...transaction,
+                  };
+                  PDFService.generateFinancialReport([transactionForPdf]);
+                  toast.success("Recibo gerado com sucesso!");
+                } catch (error) {
+                  console.error("Erro ao gerar recibo:", error);
+                  toast.error("Erro ao gerar recibo");
+                }
+              }}
+            >
+              Imprimir
+            </Button>
           )}
         </div>
       </TableCell>

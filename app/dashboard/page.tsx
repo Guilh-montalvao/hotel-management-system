@@ -138,10 +138,6 @@ export default function DashboardPage() {
           Painel de Controle
         </h1>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" aria-label="Filtrar por data">
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            Filtrar por Data
-          </Button>
           <Button size="sm" aria-label="Baixar relatório">
             <ArrowDownIcon className="mr-2 h-4 w-4" />
             Baixar Relatório
