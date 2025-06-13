@@ -208,13 +208,25 @@ export function BookingDetailsDialog({
           <div className="flex space-x-2">
             {/* Botões condicionais baseados no status */}
             {booking.status === "Reservado" && onCheckIn && (
-              <Button variant="default" onClick={() => onCheckIn(booking.id)}>
+              <Button
+                variant="default"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onCheckIn(booking.id);
+                }}
+              >
                 <CheckIcon className="mr-2 h-4 w-4" />
                 Fazer Check-in
               </Button>
             )}
             {booking.status === "Check-in Feito" && onCheckOut && (
-              <Button variant="default" onClick={() => onCheckOut(booking.id)}>
+              <Button
+                variant="default"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onCheckOut(booking.id);
+                }}
+              >
                 <XIcon className="mr-2 h-4 w-4" />
                 Fazer Check-out
               </Button>
