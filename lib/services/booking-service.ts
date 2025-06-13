@@ -239,4 +239,87 @@ export const bookingService = {
     // Retorna o resultado da operação
     return result;
   },
+
+  /**
+   * Atualiza o status de pagamento de uma reserva
+   *
+   * Esta função é usada para refletir alterações no status de pagamento,
+   * quando um pagamento é processado através do sistema de pagamentos.
+   *
+   * @param id ID da reserva
+   * @param paymentStatus novo status de pagamento
+   * @returns Promise com boolean indicando sucesso (true) ou falha (false)
+   * @throws Erro de console se a operação falhar
+   */
+  async updateBookingPaymentStatus(
+    id: string,
+    paymentStatus: "Pendente" | "Parcial" | "Pago" | "Reembolsado"
+  ): Promise<boolean> {
+    try {
+      // Atualiza apenas o status de pagamento da reserva
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          payment_status: paymentStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      // Se ocorrer um erro, registra no console e retorna false
+      if (error) {
+        console.error(
+          "Erro ao atualizar status de pagamento da reserva:",
+          error
+        );
+        return false;
+      }
+
+      // Retorna true indicando sucesso
+      return true;
+    } catch (error) {
+      console.error("Erro ao atualizar status de pagamento:", error);
+      return false;
+    }
+  },
+
+  /**
+   * Atualiza uma reserva existente e seus detalhes
+   *
+   * Esta função permite editar as informações da reserva, incluindo datas,
+   * valores e informações gerais.
+   *
+   * @param id ID da reserva a ser atualizada
+   * @param bookingData dados da reserva a serem atualizados
+   * @returns Promise com a reserva atualizada ou null se falhar
+   * @throws Erro de console se a operação falhar
+   */
+  async updateBooking(
+    id: string,
+    bookingData: Partial<Booking>
+  ): Promise<Booking | null> {
+    try {
+      // Adiciona timestamp de atualização
+      bookingData.updated_at = new Date().toISOString();
+
+      // Atualiza a reserva com os novos dados
+      const { data, error } = await supabase
+        .from("bookings")
+        .update(bookingData)
+        .eq("id", id)
+        .select("*")
+        .single();
+
+      // Se ocorrer um erro, registra no console e retorna null
+      if (error) {
+        console.error("Erro ao atualizar reserva:", error);
+        return null;
+      }
+
+      // Retorna a reserva atualizada
+      return data;
+    } catch (error) {
+      console.error("Erro ao atualizar reserva:", error);
+      return null;
+    }
+  },
 };
