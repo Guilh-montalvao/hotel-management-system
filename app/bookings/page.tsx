@@ -19,6 +19,7 @@ import {
   RefreshCwIcon,
   SearchIcon,
   XIcon,
+  FileTextIcon,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,9 @@ import { supabase } from "@/lib/supabase";
 import { bookingService } from "@/lib/services/booking-service";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+import { PDFService } from "@/lib/services/pdf-service";
 
 /**
  * Página de gerenciamento de reservas
@@ -60,6 +64,13 @@ export default function BookingsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Hook de paginação
+  const pagination = usePagination({
+    data: filteredBookings,
+    itemsPerPage: itemsPerPage,
+  });
 
   // Estatísticas das reservas
   const [bookingStats, setBookingStats] = useState({
@@ -496,6 +507,41 @@ export default function BookingsPage() {
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                // Buscar dados atualizados do banco
+                const { data: bookingsData, error } = await supabase
+                  .from("bookings")
+                  .select("*, guests(*), rooms(*)")
+                  .order("check_in", { ascending: false });
+
+                if (error) {
+                  toast.error("Erro ao buscar dados para o relatório");
+                  return;
+                }
+
+                if (bookingsData && bookingsData.length > 0) {
+                  PDFService.generateBookingsReport(bookingsData);
+                  toast.success(
+                    "Relatório PDF de reservas gerado com sucesso!"
+                  );
+                } else {
+                  toast.error(
+                    "Nenhuma reserva encontrada para gerar relatório"
+                  );
+                }
+              } catch (error) {
+                console.error("Erro ao gerar relatório:", error);
+                toast.error("Erro ao gerar relatório");
+              }
+            }}
+          >
+            <FileTextIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Gerar PDF
+          </Button>
           <Button size="sm" onClick={() => setShowAddBookingDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Nova Reserva
@@ -641,7 +687,7 @@ export default function BookingsPage() {
               <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
             </TabsList>
 
-            {filteredBookings.length > 0 ? (
+            {pagination.totalItems > 0 ? (
               <TabsContent value={currentTab} className="space-y-4">
                 <Table>
                   <TableHeader>
@@ -656,7 +702,7 @@ export default function BookingsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBookings.map((booking) => (
+                    {pagination.paginatedData.map((booking) => (
                       <BookingRow
                         key={booking.id}
                         booking={booking}
@@ -665,6 +711,24 @@ export default function BookingsPage() {
                     ))}
                   </TableBody>
                 </Table>
+
+                {/* Controles de paginação */}
+                {pagination.totalPages > 1 && (
+                  <div className="mt-4">
+                    <PaginationControls
+                      currentPage={pagination.currentPage}
+                      totalPages={pagination.totalPages}
+                      onPageChange={pagination.goToPage}
+                      canGoNext={pagination.canGoNext}
+                      canGoPrevious={pagination.canGoPrevious}
+                      startIndex={pagination.startIndex}
+                      endIndex={pagination.endIndex}
+                      totalItems={pagination.totalItems}
+                      itemsPerPage={itemsPerPage}
+                      onItemsPerPageChange={setItemsPerPage}
+                    />
+                  </div>
+                )}
               </TabsContent>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-center">

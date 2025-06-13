@@ -45,7 +45,24 @@ import { useSupabase } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { BreadcrumbNavigation } from "@/components/ui/breadcrumb-navigation";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+import { PDFService } from "@/lib/services/pdf-service";
+import { FileTextIcon } from "lucide-react";
+import {
+  AdvancedFilters,
+  FilterConfig,
+  FilterValue,
+} from "@/components/ui/advanced-filters";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDownIcon, EyeIcon, DownloadIcon } from "lucide-react";
 import { guestService } from "@/lib/services/guest-service";
+import { DownloadInstructions } from "@/components/ui/download-instructions";
 
 // Interface que define a estrutura de dados de um hóspede
 export interface Guest {
@@ -185,6 +202,61 @@ export default function GuestsPage() {
   const [showEditGuestDialog, setShowEditGuestDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [advancedFilters, setAdvancedFilters] = useState<FilterValue>({});
+
+  // Hook de paginação
+  const pagination = usePagination({
+    data: filteredGuests,
+    itemsPerPage: itemsPerPage,
+  });
+
+  // Configuração dos filtros avançados
+  const filterConfigs: FilterConfig[] = [
+    {
+      key: "name",
+      label: "Nome",
+      type: "text",
+      placeholder: "Buscar por nome...",
+    },
+    {
+      key: "email",
+      label: "Email",
+      type: "text",
+      placeholder: "Buscar por email...",
+    },
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "Hospedado", label: "Hospedado" },
+        { value: "Reservado", label: "Reservado" },
+        { value: "Sem estadia", label: "Sem estadia" },
+      ],
+    },
+    {
+      key: "gender",
+      label: "Gênero",
+      type: "select",
+      options: [
+        { value: "Masculino", label: "Masculino" },
+        { value: "Feminino", label: "Feminino" },
+        { value: "Outro", label: "Outro" },
+      ],
+    },
+    {
+      key: "birthDateRange",
+      label: "Período de Nascimento",
+      type: "dateRange",
+    },
+    {
+      key: "cpf",
+      label: "CPF",
+      type: "text",
+      placeholder: "000.000.000-00",
+    },
+  ];
 
   // Carregar dados do Supabase quando o componente montar
   useEffect(() => {
@@ -198,7 +270,7 @@ export default function GuestsPage() {
     }
   }, [dbGuests]);
 
-  // Função para filtrar hóspedes com base na pesquisa, filtro de status e aba atual
+  // Função para filtrar hóspedes com base na pesquisa, filtro de status, aba atual e filtros avançados
   useEffect(() => {
     // Aplicando os filtros
     let results = [...guestData];
@@ -245,13 +317,66 @@ export default function GuestsPage() {
       );
     }
 
+    // Aplicar filtros avançados
+    Object.keys(advancedFilters).forEach((key) => {
+      const value = advancedFilters[key];
+      if (!value) return;
+
+      switch (key) {
+        case "name":
+          if (value.trim()) {
+            results = results.filter((guest) =>
+              guest.name.toLowerCase().includes(value.toLowerCase())
+            );
+          }
+          break;
+        case "email":
+          if (value.trim()) {
+            results = results.filter((guest) =>
+              guest.email.toLowerCase().includes(value.toLowerCase())
+            );
+          }
+          break;
+        case "status":
+          results = results.filter((guest) => guest.status === value);
+          break;
+        case "gender":
+          results = results.filter((guest) => guest.genero === value);
+          break;
+        case "cpf":
+          if (value.trim()) {
+            results = results.filter((guest) =>
+              guest.cpf?.toLowerCase().includes(value.toLowerCase())
+            );
+          }
+          break;
+        case "birthDateRange":
+          if (value.from || value.to) {
+            results = results.filter((guest) => {
+              if (!guest.birthDate) return false;
+              const guestDate = new Date(
+                guest.birthDate.split("/").reverse().join("-")
+              );
+              const fromDate = value.from ? new Date(value.from) : null;
+              const toDate = value.to ? new Date(value.to) : null;
+
+              if (fromDate && guestDate < fromDate) return false;
+              if (toDate && guestDate > toDate) return false;
+              return true;
+            });
+          }
+          break;
+      }
+    });
+
     setFilteredGuests(results);
-  }, [searchQuery, statusFilter, currentTab, guestData]);
+  }, [searchQuery, statusFilter, currentTab, guestData, advancedFilters]);
 
   // Função para limpar filtros
   const clearFilters = () => {
     setSearchQuery("");
     setStatusFilter("all");
+    setAdvancedFilters({});
   };
 
   // Função para atualizar os filtros manualmente
@@ -447,6 +572,24 @@ export default function GuestsPage() {
     }
   };
 
+  const handleGeneratePDF = () => {
+    if (dbGuests && dbGuests.length > 0) {
+      PDFService.generateGuestsReport(dbGuests);
+      toast.success("Relatório PDF de hóspedes gerado com sucesso!");
+    } else {
+      toast.error("Nenhum hóspede encontrado para gerar relatório");
+    }
+  };
+
+  const handleViewPDF = () => {
+    if (dbGuests && dbGuests.length > 0) {
+      PDFService.openGuestsReportInNewTab(dbGuests);
+      toast.success("Relatório PDF aberto em nova aba!");
+    } else {
+      toast.error("Nenhum hóspede encontrado para gerar relatório");
+    }
+  };
+
   return (
     <GuestsPageContext.Provider
       value={{ handleEditGuest, handleViewGuestDetails }}
@@ -466,11 +609,25 @@ export default function GuestsPage() {
               <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Limpar Filtros
             </Button>
-            <Button variant="outline" size="sm" onClick={reloadData}>
-              <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-              Recarregar Dados
-            </Button>
-
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2">
+                  <FileTextIcon className="h-4 w-4" />
+                  Relatório PDF
+                  <ChevronDownIcon className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleGeneratePDF}>
+                  <DownloadIcon className="h-4 w-4 mr-2" />
+                  Baixar PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleViewPDF}>
+                  <EyeIcon className="h-4 w-4 mr-2" />
+                  Visualizar PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" onClick={() => setShowAddGuestDialog(true)}>
               <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
               Adicionar Hóspede
@@ -599,7 +756,17 @@ export default function GuestsPage() {
                 <TabsTrigger value="recent">Reservados</TabsTrigger>
               </TabsList>
 
-              {filteredGuests.length > 0 ? (
+              {/* Filtros Avançados */}
+              <div className="mb-4">
+                <AdvancedFilters
+                  filters={filterConfigs}
+                  values={advancedFilters}
+                  onChange={setAdvancedFilters}
+                  onClear={() => setAdvancedFilters({})}
+                />
+              </div>
+
+              {pagination.totalItems > 0 ? (
                 <TabsContent value={currentTab} className="space-y-4">
                   <Table>
                     <TableHeader>
@@ -613,11 +780,29 @@ export default function GuestsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredGuests.map((guest) => (
+                      {pagination.paginatedData.map((guest) => (
                         <GuestRow key={guest.id} guest={guest} />
                       ))}
                     </TableBody>
                   </Table>
+
+                  {/* Controles de paginação */}
+                  {pagination.totalPages > 1 && (
+                    <div className="mt-4">
+                      <PaginationControls
+                        currentPage={pagination.currentPage}
+                        totalPages={pagination.totalPages}
+                        onPageChange={pagination.goToPage}
+                        canGoNext={pagination.canGoNext}
+                        canGoPrevious={pagination.canGoPrevious}
+                        startIndex={pagination.startIndex}
+                        endIndex={pagination.endIndex}
+                        totalItems={pagination.totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                      />
+                    </div>
+                  )}
                 </TabsContent>
               ) : (
                 <div className="flex flex-col items-center justify-center p-8 text-center">

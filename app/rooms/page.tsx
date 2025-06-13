@@ -38,6 +38,10 @@ import { useRoomFilters } from "@/hooks/useRoomFilters";
 import { roomService } from "@/lib/services/room-service";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+import { PDFService } from "@/lib/services/pdf-service";
+import { FileTextIcon } from "lucide-react";
 
 /**
  * Página de gerenciamento de quartos
@@ -87,6 +91,13 @@ export default function RoomsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   // Estado para armazenar o quarto selecionado para visualização de detalhes
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState(12);
+
+  // Hook de paginação
+  const pagination = usePagination({
+    data: filteredRooms,
+    itemsPerPage: itemsPerPage,
+  });
 
   /**
    * Manipulador para adicionar um novo quarto
@@ -181,6 +192,21 @@ export default function RoomsPage() {
           >
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Atualizar
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (rooms && rooms.length > 0) {
+                PDFService.generateRoomsReport(rooms);
+                toast.success("Relatório PDF de quartos gerado com sucesso!");
+              } else {
+                toast.error("Nenhum quarto encontrado para gerar relatório");
+              }
+            }}
+          >
+            <FileTextIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Gerar PDF
           </Button>
           <Button size="sm" onClick={() => setShowAddRoomDialog(true)}>
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -345,11 +371,11 @@ export default function RoomsPage() {
                     Carregando quartos...
                   </div>
                 </div>
-              ) : filteredRooms.length > 0 ? (
+              ) : pagination.totalItems > 0 ? (
                 // Lista de quartos filtrados
                 <TabsContent value={typeFilter} className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {filteredRooms.map((room) => (
+                    {pagination.paginatedData.map((room) => (
                       <RoomCard
                         key={room.id}
                         room={room}
@@ -358,6 +384,24 @@ export default function RoomsPage() {
                       />
                     ))}
                   </div>
+
+                  {/* Controles de paginação */}
+                  {pagination.totalPages > 1 && (
+                    <div className="mt-6">
+                      <PaginationControls
+                        currentPage={pagination.currentPage}
+                        totalPages={pagination.totalPages}
+                        onPageChange={pagination.goToPage}
+                        canGoNext={pagination.canGoNext}
+                        canGoPrevious={pagination.canGoPrevious}
+                        startIndex={pagination.startIndex}
+                        endIndex={pagination.endIndex}
+                        totalItems={pagination.totalItems}
+                        itemsPerPage={itemsPerPage}
+                        onItemsPerPageChange={setItemsPerPage}
+                      />
+                    </div>
+                  )}
                 </TabsContent>
               ) : (
                 // Mensagem de nenhum resultado encontrado
