@@ -44,6 +44,10 @@ import { useSupabase } from "@/hooks/useSupabase";
 import { paymentService } from "@/lib/services/payment-service";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { usePagination } from "@/hooks/usePagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+import { PDFService } from "@/lib/services/pdf-service";
+import { FileTextIcon } from "lucide-react";
 
 /**
  * Página de gerenciamento de pagamentos
@@ -57,6 +61,13 @@ export default function PaymentsPage() {
   const [paymentMetrics, setPaymentMetrics] = useState<any>(null);
   const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  // Hook de paginação
+  const pagination = usePagination({
+    data: filteredTransactions,
+    itemsPerPage: itemsPerPage,
+  });
 
   // Buscar dados reais dos pagamentos
   useEffect(() => {
@@ -187,6 +198,28 @@ export default function PaymentsPage() {
           <Button variant="outline" size="sm" onClick={clearFilters}>
             <RefreshCwIcon className="mr-2 h-4 w-4" aria-hidden="true" />
             Limpar Filtros
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                if (payments && payments.length > 0) {
+                  PDFService.generateFinancialReport(payments);
+                  toast.success("Relatório PDF financeiro gerado com sucesso!");
+                } else {
+                  toast.error(
+                    "Nenhuma transação encontrada para gerar relatório"
+                  );
+                }
+              } catch (error) {
+                console.error("Erro ao gerar relatório:", error);
+                toast.error("Erro ao gerar relatório");
+              }
+            }}
+          >
+            <FileTextIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+            Gerar PDF
           </Button>
           <Button size="sm">
             <PlusIcon className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -359,7 +392,7 @@ export default function PaymentsPage() {
               <TabsTrigger value="refunds">Reembolsos</TabsTrigger>
             </TabsList>
 
-            {filteredTransactions.length > 0 ? (
+            {pagination.totalItems > 0 ? (
               <TabsContent value={currentTab} className="space-y-4">
                 <Table>
                   <TableHeader>
@@ -374,7 +407,7 @@ export default function PaymentsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTransactions.map((transaction) => (
+                    {pagination.paginatedData.map((transaction) => (
                       <TransactionRow
                         key={transaction.id}
                         transaction={transaction}
@@ -382,6 +415,24 @@ export default function PaymentsPage() {
                     ))}
                   </TableBody>
                 </Table>
+
+                {/* Controles de paginação */}
+                {pagination.totalPages > 1 && (
+                  <div className="mt-4">
+                    <PaginationControls
+                      currentPage={pagination.currentPage}
+                      totalPages={pagination.totalPages}
+                      onPageChange={pagination.goToPage}
+                      canGoNext={pagination.canGoNext}
+                      canGoPrevious={pagination.canGoPrevious}
+                      startIndex={pagination.startIndex}
+                      endIndex={pagination.endIndex}
+                      totalItems={pagination.totalItems}
+                      itemsPerPage={itemsPerPage}
+                      onItemsPerPageChange={setItemsPerPage}
+                    />
+                  </div>
+                )}
               </TabsContent>
             ) : (
               <div className="flex flex-col items-center justify-center p-8 text-center">
@@ -426,16 +477,14 @@ function TransactionRow({ transaction }: { transaction: any }) {
     ? format(new Date(transaction.payment_date), "dd/MM/yyyy")
     : format(new Date(transaction.created_at), "dd/MM/yyyy");
 
-  // ID da transação: para reservas pendentes, usar ID da reserva
+  // ID da transação: usar formato mais legível baseado no tipo
   const transactionId = transaction.is_pending_booking
-    ? `booking-${transaction.booking_id}`
-    : transaction.id;
+    ? `RES-${transaction.booking_id.slice(-6).toUpperCase()}`
+    : `PAG-${transaction.id.slice(-6).toUpperCase()}`;
 
   return (
     <TableRow>
-      <TableCell className="font-medium">
-        #{transactionId.toString().slice(0, 8)}
-      </TableCell>
+      <TableCell className="font-medium">#{transactionId}</TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
           <Avatar className="h-8 w-8">

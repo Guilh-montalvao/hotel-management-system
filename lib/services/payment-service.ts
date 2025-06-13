@@ -373,7 +373,7 @@ export const paymentService = {
       // Converter reservas pendentes para formato de transação
       if (pendingBookings) {
         const pendingTransactions = pendingBookings.map((booking: any) => ({
-          id: `booking-${booking.id}`,
+          id: `pending-${booking.id}`,
           booking_id: booking.id,
           amount: booking.total_amount || 0,
           method: "Pendente",
