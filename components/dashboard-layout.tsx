@@ -109,7 +109,7 @@ export default function DashboardLayout({
           <SidebarHeader className="border-b">
             <div className="flex items-center gap-2 px-4 py-2">
               <HotelIcon className="h-6 w-6 text-primary" />
-              <span className="text-xl font-bold">HotelPro</span>
+              <span className="text-xl font-bold">Thanius Hotel</span>
             </div>
           </SidebarHeader>
 
@@ -142,7 +142,7 @@ export default function DashboardLayout({
                 <AvatarFallback>JS</AvatarFallback>
               </Avatar>
               <div className="flex flex-col">
-                <span className="text-sm font-medium">João Silva</span>
+                <span className="text-sm font-medium">Agostinho Lacerda</span>
                 <span className="text-xs text-muted-foreground">
                   Gerente do Hotel
                 </span>
