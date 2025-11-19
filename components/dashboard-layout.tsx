@@ -29,7 +29,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { ModeToggle } from "@/components/mode-toggle";
+import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -218,7 +218,10 @@ export default function DashboardLayout({
               </DropdownMenu>
 
               {/* Botão para alternar entre tema claro e escuro */}
-              <ModeToggle />
+              <AnimatedThemeToggler
+                aria-label="Alternar tema"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10"
+              />
 
               {/* Botão de acesso às configurações do sistema */}
               <Button variant="outline" size="icon" aria-label="Configurações">
