@@ -44,7 +44,6 @@ import { format } from "date-fns";
 import { useSupabase } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { BreadcrumbNavigation } from "@/components/ui/breadcrumb-navigation";
 import { usePagination } from "@/hooks/usePagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { PDFService } from "@/lib/services/pdf-service";
@@ -489,7 +488,6 @@ export default function GuestsPage() {
       value={{ handleEditGuest, handleViewGuestDetails }}
     >
       <div className="flex flex-col gap-4">
-        <BreadcrumbNavigation />
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
             Gerenciamento de Hóspedes
