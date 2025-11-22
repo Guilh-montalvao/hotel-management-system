@@ -37,7 +37,6 @@ import { AddBookingDialog } from "@/components/bookings/add-booking-dialog";
 import { AddGuestDialog } from "@/components/guests/add-guest-dialog";
 import { dashboardService } from "@/lib/services/dashboard-service";
 import { toast } from "sonner";
-import { BreadcrumbNavigation } from "@/components/ui/breadcrumb-navigation";
 import { AnalyticsTab } from "@/components/dashboard/analytics-tab";
 import { ReportsTab } from "@/components/dashboard/reports-tab";
 
@@ -131,7 +130,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <BreadcrumbNavigation />
       {/* Cabeçalho com título e botões de ação */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">
