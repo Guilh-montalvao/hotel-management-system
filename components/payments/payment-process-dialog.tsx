@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -91,21 +91,20 @@ export function PaymentProcessDialog({
     },
   });
 
-  // Ao abrir o diálogo, atualiza os valores do formulário
-  // com os dados da transação atual
-  if (open && transaction) {
-    form.setValue("method", transaction.method || "");
-    form.setValue(
-      "amount",
-      transaction.amount ? transaction.amount.toString() : ""
-    );
-    form.setValue(
-      "payment_date",
-      transaction.payment_date
+  // Inicializa/atualiza os valores do formulário fora da renderização
+  // para evitar setState durante render
+  useEffect(() => {
+    if (!open || !transaction) return;
+    form.reset({
+      method: transaction.method || "",
+      amount: transaction.amount ? transaction.amount.toString() : "",
+      payment_date: transaction.payment_date
         ? format(new Date(transaction.payment_date), "yyyy-MM-dd")
-        : format(new Date(), "yyyy-MM-dd")
-    );
-  }
+        : format(new Date(), "yyyy-MM-dd"),
+      notes: "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, transaction]);
 
   // Função para aprovar o pagamento
   const handleApprovePayment = async () => {
@@ -113,21 +112,15 @@ export function PaymentProcessDialog({
       setIsSubmitting(true);
       setSelectedAction("approve");
 
-      // Se for uma reserva pendente, primeiro cria o pagamento
-      if (transaction.is_pending_booking) {
+      // Se for uma transação baseada em reserva (pendente/paga), apenas atualizar a reserva
+      if (transaction.is_booking_transaction) {
         const formData = form.getValues();
 
-        // Criar um novo pagamento
-        const newPayment = {
-          booking_id: transaction.booking_id,
-          amount: parseFloat(formData.amount.replace(",", ".")),
-          method: formData.method,
-          status: "Aprovado",
-          payment_date:
-            formData.payment_date || new Date().toISOString().split("T")[0],
-        };
-
-        await paymentService.addPayment(newPayment);
+        // Atualizar dados da reserva (método/valor)
+        await bookingService.updateBooking(transaction.booking_id, {
+          payment_method: formData.method,
+          total_amount: parseFloat(formData.amount.replace(",", ".")),
+        });
 
         // Atualizar o status da reserva para refletir o pagamento
         await bookingService.updateBookingPaymentStatus(
@@ -170,23 +163,8 @@ export function PaymentProcessDialog({
       setIsSubmitting(true);
       setSelectedAction("reject");
 
-      // Se for uma reserva pendente, primeiro cria o pagamento e depois o rejeita
-      if (transaction.is_pending_booking) {
-        const formData = form.getValues();
-
-        // Criar um novo pagamento já com status rejeitado
-        const newPayment = {
-          booking_id: transaction.booking_id,
-          amount: parseFloat(formData.amount.replace(",", ".")),
-          method: formData.method,
-          status: "Rejeitado",
-          payment_date:
-            formData.payment_date || new Date().toISOString().split("T")[0],
-        };
-
-        await paymentService.addPayment(newPayment);
-
-        // Manter o status da reserva como pendente
+      // Para transações baseadas em reserva, não criar pagamento; manter pendente
+      if (transaction.is_booking_transaction) {
         await bookingService.updateBookingPaymentStatus(
           transaction.booking_id,
           "Pendente"
@@ -233,14 +211,19 @@ export function PaymentProcessDialog({
         return;
       }
 
-      await paymentService.updatePaymentStatus(transaction.id, "Estornado");
-
-      // Atualizar o status da reserva se existir
-      if (transaction.booking_id) {
+      if (transaction.is_booking_transaction) {
         await bookingService.updateBookingPaymentStatus(
           transaction.booking_id,
           "Reembolsado"
         );
+      } else {
+        await paymentService.updatePaymentStatus(transaction.id, "Estornado");
+        if (transaction.booking_id) {
+          await bookingService.updateBookingPaymentStatus(
+            transaction.booking_id,
+            "Reembolsado"
+          );
+        }
       }
 
       toast.success("Pagamento estornado com sucesso");
@@ -267,9 +250,9 @@ export function PaymentProcessDialog({
         <DialogHeader>
           <DialogTitle>Processar Pagamento</DialogTitle>
           <DialogDescription>
-            {transaction.is_pending_booking
-              ? "Registre um novo pagamento para esta reserva."
-              : "Atualize o status deste pagamento."}
+          {transaction.is_booking_transaction
+            ? "Registre um novo pagamento para esta reserva."
+            : "Atualize o status deste pagamento."}
           </DialogDescription>
         </DialogHeader>
 
