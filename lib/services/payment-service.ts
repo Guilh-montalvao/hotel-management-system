@@ -204,16 +204,18 @@ export const paymentService = {
 
       if (paymentsError) throw paymentsError;
 
-      // Busca reservas com payment_status pendente (que ainda não têm pagamento criado)
+      // Busca reservas para incluir métricas de pendentes e pagas
       const { data: bookingsData, error: bookingsError } = await supabase
         .from("bookings")
         .select("total_amount, payment_status, created_at")
-        .eq("payment_status", "Pendente");
+        .in("payment_status", ["Pendente", "Parcial", "Pago", "Reembolsado"]);
 
       if (bookingsError) throw bookingsError;
 
       const payments = paymentsData || [];
-      const pendingBookings = bookingsData || [];
+      const allBookings = bookingsData || [];
+      const pendingBookings = allBookings.filter((b: any) => b.payment_status === "Pendente");
+      const paidBookings = allBookings.filter((b: any) => b.payment_status === "Pago");
 
       if (payments.length === 0 && pendingBookings.length === 0) {
         return {
@@ -236,9 +238,11 @@ export const paymentService = {
         .slice(0, 7);
 
       // Calcular métricas principais
-      const totalRevenue = payments
-        .filter((p) => p.status === "Aprovado")
-        .reduce((sum, p) => sum + p.amount, 0);
+      const totalRevenue =
+        payments
+          .filter((p) => p.status === "Aprovado")
+          .reduce((sum, p) => sum + p.amount, 0) +
+        paidBookings.reduce((sum, b: any) => sum + (b.total_amount || 0), 0);
 
       // Incluir tanto pagamentos processando quanto reservas pendentes
       const pendingPayments =
@@ -249,12 +253,11 @@ export const paymentService = {
 
       const todayTransactions =
         payments.filter((p) => p.created_at.startsWith(today)).length +
-        pendingBookings.filter((b) => b.created_at.startsWith(today)).length;
+        allBookings.filter((b) => b.created_at.startsWith(today)).length;
 
       const monthlyTransactions =
         payments.filter((p) => p.created_at.startsWith(thisMonth)).length +
-        pendingBookings.filter((b) => b.created_at.startsWith(thisMonth))
-          .length;
+        allBookings.filter((b) => b.created_at.startsWith(thisMonth)).length;
 
       // Distribuição por método de pagamento
       const paymentMethods = payments.reduce((acc: any, p) => {
@@ -264,7 +267,7 @@ export const paymentService = {
 
       // Incluir reservas pendentes na contagem
       if (pendingBookings.length > 0) {
-        paymentMethods["Pendente"] = pendingBookings.length;
+        paymentMethods["Pendente"] = (paymentMethods["Pendente"] || 0) + pendingBookings.length;
       }
 
       // Distribuição por status (incluindo reservas pendentes)
@@ -274,7 +277,10 @@ export const paymentService = {
       }, {});
 
       if (pendingBookings.length > 0) {
-        statusBreakdown["Pendente"] = pendingBookings.length;
+        statusBreakdown["Pendente"] = (statusBreakdown["Pendente"] || 0) + pendingBookings.length;
+      }
+      if (paidBookings.length > 0) {
+        statusBreakdown["Aprovado"] = (statusBreakdown["Aprovado"] || 0) + paidBookings.length;
       }
 
       // Calcular crescimento da receita (comparar com mês anterior)
@@ -354,38 +360,51 @@ export const paymentService = {
 
       if (paymentsError) throw paymentsError;
 
-      // Buscar reservas com payment_status pendente
-      const { data: pendingBookings, error: bookingsError } = await supabase
+      // Buscar reservas e mapear para transações unificadas
+      const { data: bookingsData, error: bookingsError } = await supabase
         .from("bookings")
         .select("*, guests(*), rooms(*)")
-        .eq("payment_status", "Pendente")
+        .in("payment_status", ["Pendente", "Parcial", "Pago", "Reembolsado"])
         .order("created_at", { ascending: false });
 
       if (bookingsError) throw bookingsError;
 
       const transactions = [];
 
-      // Adicionar pagamentos existentes
-      if (paymentsData) {
-        transactions.push(...paymentsData);
+      // Converter reservas para formato de transação (único card)
+      const bookingIdsIncluded = new Set<string>();
+      if (bookingsData) {
+        const bookingTransactions = bookingsData.map((booking: any) => {
+          const statusMap: Record<string, string> = {
+            Pendente: "Pendente",
+            Parcial: "Processando",
+            Pago: "Aprovado",
+            Reembolsado: "Estornado",
+          };
+
+          bookingIdsIncluded.add(booking.id);
+
+          return {
+            id: `res-${booking.id}`,
+            booking_id: booking.id,
+            amount: booking.total_amount || 0,
+            method: booking.payment_method || (booking.payment_status === "Pendente" ? "Pendente" : "Não informado"),
+            status: statusMap[booking.payment_status] || "Pendente",
+            payment_date: null,
+            created_at: booking.created_at,
+            updated_at: booking.updated_at,
+            bookings: booking,
+            is_booking_transaction: true,
+          };
+        });
+
+        transactions.push(...bookingTransactions);
       }
 
-      // Converter reservas pendentes para formato de transação
-      if (pendingBookings) {
-        const pendingTransactions = pendingBookings.map((booking: any) => ({
-          id: `pending-${booking.id}`,
-          booking_id: booking.id,
-          amount: booking.total_amount || 0,
-          method: "Pendente",
-          status: "Pendente",
-          payment_date: null,
-          created_at: booking.created_at,
-          updated_at: booking.updated_at,
-          bookings: booking,
-          is_pending_booking: true, // Flag para identificar
-        }));
-
-        transactions.push(...pendingTransactions);
+      // Adicionar pagamentos existentes, evitando duplicatas por booking_id
+      if (paymentsData) {
+        const filteredPayments = paymentsData.filter((p: any) => !bookingIdsIncluded.has(p.booking_id));
+        transactions.push(...filteredPayments);
       }
 
       // Ordenar por data de criação (mais recentes primeiro)

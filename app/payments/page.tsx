@@ -546,9 +546,9 @@ function TransactionRow({
   };
 
   // ID da transação: usar formato mais legível baseado no tipo
-  const transactionId = transaction.is_pending_booking
+  const transactionId = transaction.is_booking_transaction
     ? `RES-${transaction.booking_id.slice(-6).toUpperCase()}`
-    : `PAG-${transaction.id.slice(-6).toUpperCase()}`;
+    : `PAG-${(transaction.id || "").slice(-6).toUpperCase()}`;
 
   return (
     <TableRow>
