@@ -64,7 +64,7 @@ export default function BookingsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [showAddBookingDialog, setShowAddBookingDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Hook de paginação
   const pagination = usePagination({
@@ -425,8 +425,7 @@ export default function BookingsPage() {
     } catch (error) {
       console.error("Erro ao adicionar reserva:", error);
       toast.error(
-        `Erro ao adicionar reserva: ${
-          error instanceof Error ? error.message : "Erro desconhecido"
+        `Erro ao adicionar reserva: ${error instanceof Error ? error.message : "Erro desconhecido"
         }`
       );
     }
@@ -709,7 +708,7 @@ export default function BookingsPage() {
                 </Table>
 
                 {/* Controles de paginação */}
-                {pagination.totalPages > 1 && (
+                {pagination.totalItems > 0 && (
                   <div className="mt-4">
                     <PaginationControls
                       currentPage={pagination.currentPage}
@@ -803,10 +802,10 @@ function BookingRow({
             booking.status === "Reservado"
               ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800"
               : booking.status === "Check-in Feito"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
-              : booking.status === "Check-out Feito"
-              ? "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
-              : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800"
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
+                : booking.status === "Check-out Feito"
+                  ? "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
+                  : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800"
           }
         >
           {booking.status}
@@ -844,11 +843,11 @@ interface Booking {
   checkIn: string;
   checkOut: string;
   status:
-    | "Reservado"
-    | "Check-in Feito"
-    | "Check-out Feito"
-    | "Pendente"
-    | "Cancelada";
+  | "Reservado"
+  | "Check-in Feito"
+  | "Check-out Feito"
+  | "Pendente"
+  | "Cancelada";
   paymentStatus: string;
   paymentMethod: string;
 }

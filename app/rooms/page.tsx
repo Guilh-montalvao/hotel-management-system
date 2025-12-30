@@ -91,7 +91,7 @@ export default function RoomsPage() {
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   // Estado para armazenar o quarto selecionado para visualização de detalhes
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-  const [itemsPerPage, setItemsPerPage] = useState(12);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Hook de paginação
   const pagination = usePagination({
@@ -382,7 +382,7 @@ export default function RoomsPage() {
                   </div>
 
                   {/* Controles de paginação */}
-                  {pagination.totalPages > 1 && (
+                  {pagination.totalItems > 0 && (
                     <div className="mt-6">
                       <PaginationControls
                         currentPage={pagination.currentPage}
