@@ -95,9 +95,8 @@ const convertDbGuestToUIGuest = (dbGuest: any): Guest => {
       const parts = dateStr.split("-");
       if (parts.length >= 3) {
         // Formatar como DD/MM/YYYY
-        birthDateFormatted = `${parts[2].substring(0, 2)}/${parts[1]}/${
-          parts[0]
-        }`;
+        birthDateFormatted = `${parts[2].substring(0, 2)}/${parts[1]}/${parts[0]
+          }`;
       }
     } else {
       // Fallback para o método anterior
@@ -196,7 +195,7 @@ export default function GuestsPage() {
   const [showEditGuestDialog, setShowEditGuestDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   // Hook de paginação
   const pagination = usePagination({
@@ -379,8 +378,7 @@ export default function GuestsPage() {
         );
       } else {
         toast.error(
-          `Erro ao adicionar hóspede: ${
-            error.message || "Problema de conexão com o banco"
+          `Erro ao adicionar hóspede: ${error.message || "Problema de conexão com o banco"
           }`
         );
       }
@@ -664,7 +662,7 @@ export default function GuestsPage() {
                     </TableBody>
                   </Table>
 
-                  {pagination.totalPages > 1 && (
+                  {pagination.totalItems > 0 && (
                     <div className="mt-4">
                       <PaginationControls
                         currentPage={pagination.currentPage}
@@ -770,8 +768,8 @@ function GuestRow({ guest }: { guest: Guest }) {
             guest.status === "Hospedado"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800"
               : guest.status === "Reservado"
-              ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800"
-              : "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
+                ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800"
+                : "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900 dark:text-gray-400 dark:border-gray-800"
           }
         >
           {guest.status}
