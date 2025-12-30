@@ -37,7 +37,7 @@ export const dashboardService = {
       // Buscar dados de reservas
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
-        .select("id, status, total_amount, check_in, check_out");
+        .select("id, status, total_amount, check_in, check_out, payment_status, created_at");
 
       if (bookingsError) throw bookingsError;
 
@@ -64,15 +64,23 @@ export const dashboardService = {
       const occupancyRate =
         totalRooms > 0 ? (occupiedRooms / totalRooms) * 100 : 0;
 
-      // Calcular receita total (pagamentos aprovados)
-      const totalRevenue =
+      // Calcular receita total (pagamentos aprovados + reservas pagas)
+      const paymentsRevenue =
         payments
           ?.filter((payment) => payment.status === "Aprovado")
           .reduce((sum, payment) => sum + payment.amount, 0) || 0;
 
+      const bookingsRevenue =
+        bookings
+          ?.filter((booking) => booking.payment_status === "Pago")
+          .reduce((sum, booking) => sum + (booking.total_amount || 0), 0) || 0;
+
+      const totalRevenue = paymentsRevenue + bookingsRevenue;
+
       // Calcular receita do mês atual
       const currentMonth = new Date().toISOString().slice(0, 7);
-      const monthlyRevenue =
+
+      const monthlyPaymentsRevenue =
         payments
           ?.filter(
             (payment) =>
@@ -81,14 +89,27 @@ export const dashboardService = {
           )
           .reduce((sum, payment) => sum + payment.amount, 0) || 0;
 
+      const monthlyBookingsRevenue =
+        bookings
+          ?.filter(
+            (booking) =>
+              booking.payment_status === "Pago" &&
+              booking.created_at.startsWith(currentMonth)
+          )
+          .reduce((sum, booking) => sum + (booking.total_amount || 0), 0) || 0;
+
+      const monthlyRevenue = monthlyPaymentsRevenue + monthlyBookingsRevenue;
+
       // Calcular hóspedes ativos
       const activeGuests =
         guests?.filter((guest) => guest.status === "Hospedado").length || 0;
 
-      // Calcular reservas pendentes
+      // Calcular reservas pendentes (incluindo status de pagamento Pendente)
       const pendingBookings =
-        bookings?.filter((booking) => booking.status === "Reservado").length ||
-        0;
+        bookings?.filter((booking) =>
+          booking.status === "Reservado" ||
+          booking.status === "Pendente"
+        ).length || 0;
 
       // Calcular reservas com check-in hoje
       const today = new Date().toISOString().split("T")[0];
@@ -202,13 +223,21 @@ export const dashboardService = {
         .toISOString()
         .split("T")[0];
 
-      const { data: payments, error } = await supabase
+      const { data: payments, error: paymentsError } = await supabase
         .from("payments")
         .select("amount, status, payment_date, created_at")
         .gte("created_at", thirtyDaysAgo)
         .eq("status", "Aprovado");
 
-      if (error) throw error;
+      if (paymentsError) throw paymentsError;
+
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("total_amount, payment_status, created_at")
+        .gte("created_at", thirtyDaysAgo)
+        .eq("payment_status", "Pago");
+
+      if (bookingsError) throw bookingsError;
 
       // Agrupar pagamentos por semana
       const weeklyData = [];
@@ -221,13 +250,23 @@ export const dashboardService = {
         const weekStartStr = weekStart.toISOString().split("T")[0];
         const weekEndStr = weekEnd.toISOString().split("T")[0];
 
-        const weekRevenue =
+        const weekPaymentsRevenue =
           payments
             ?.filter((payment) => {
               const paymentDate = payment.payment_date || payment.created_at;
               return paymentDate >= weekStartStr && paymentDate < weekEndStr;
             })
             .reduce((sum, payment) => sum + payment.amount, 0) || 0;
+
+        const weekBookingsRevenue =
+          bookings
+            ?.filter((booking) => {
+              const bookingDate = booking.created_at;
+              return bookingDate >= weekStartStr && bookingDate < weekEndStr;
+            })
+            .reduce((sum, booking) => sum + (booking.total_amount || 0), 0) || 0;
+
+        const weekRevenue = weekPaymentsRevenue + weekBookingsRevenue;
 
         weeklyData.push({
           week: `Sem ${4 - i}`,
@@ -248,6 +287,7 @@ export const dashboardService = {
       return [];
     }
   },
+
 
   /**
    * Busca reservas recentes para exibição no dashboard
